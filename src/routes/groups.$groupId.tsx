@@ -77,6 +77,7 @@ function GroupPage() {
 
   return (
     <MobileShell>
+      <AsyncStatus />
       <header className="px-5 pt-6 pb-4 flex items-center justify-between">
         <button
           onClick={() => navigate({ to: "/" })}
