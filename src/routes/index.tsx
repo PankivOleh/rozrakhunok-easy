@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bell, Globe, Moon, Plus, TrendingDown, TrendingUp } from "lucide-react";
 import { MobileShell } from "@/components/MobileShell";
+import { AsyncStatus } from "@/components/AsyncStatus";
 import { useApp } from "@/lib/app-context";
 import { calcMemberBalances, formatUAH } from "@/lib/split";
 import { Progress } from "@/components/ui/progress";
@@ -44,6 +45,7 @@ function Dashboard() {
 
   return (
     <MobileShell>
+      <AsyncStatus />
       <header className="px-5 pt-6 pb-4 flex items-center justify-between">
         <div>
           <p className="text-xs text-muted-foreground">Привіт, Олег 👋</p>
