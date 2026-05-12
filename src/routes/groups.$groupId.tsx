@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight, Plus, QrCode, Repeat } from "lucide-react";
 import { MobileShell } from "@/components/MobileShell";
+import { AsyncStatus } from "@/components/AsyncStatus";
 import { useApp } from "@/lib/app-context";
 import { calcMemberBalances, formatUAH, optimizeSettlements } from "@/lib/split";
 import { useMemo, useState } from "react";
