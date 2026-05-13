@@ -78,7 +78,6 @@ function GroupPage() {
 
   return (
     <MobileShell>
-      <AsyncStatus />
       <header className="px-5 pt-6 pb-4 flex items-center justify-between">
         <button
           onClick={() => navigate({ to: "/" })}
@@ -92,24 +91,38 @@ function GroupPage() {
             <span>{group.emoji}</span> {group.name}
           </h1>
         </div>
-        <button className="px-3 h-10 rounded-full gradient-primary text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-glow">
-          <QrCode className="size-4" /> Запросити
-        </button>
+        <QrInviteDialog
+          groupId={group.id}
+          groupName={group.name}
+          trigger={
+            <button className="px-3 h-10 rounded-full gradient-primary text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-glow">
+              <QrCode className="size-4" /> Запросити
+            </button>
+          }
+        />
       </header>
 
       <section className="px-5">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 no-scrollbar">
+        <div className="flex items-start gap-3 overflow-x-auto pb-2 no-scrollbar">
           {group.members.map((m) => (
-            <div key={m.id} className="flex flex-col items-center gap-1 shrink-0">
+            <div key={m.id} className="flex flex-col items-center gap-1 shrink-0 w-14">
               <div className="size-12 rounded-full gradient-primary flex items-center justify-center text-primary-foreground font-semibold">
                 {initials(m.name)}
               </div>
-              <span className="text-[10px] text-muted-foreground">{m.name}</span>
+              <span className="text-[10px] text-muted-foreground truncate max-w-full">{m.name}</span>
             </div>
           ))}
-          <button className="size-12 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground shrink-0">
-            <Plus className="size-4" />
-          </button>
+          <AddMemberDialog
+            groupId={group.id}
+            trigger={
+              <div className="flex flex-col items-center gap-1 shrink-0 w-14">
+                <button className="size-12 rounded-full border-2 border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-primary hover:border-primary/50 transition">
+                  <Plus className="size-4" />
+                </button>
+                <span className="text-[10px] text-muted-foreground">Додати</span>
+              </div>
+            }
+          />
         </div>
       </section>
 
