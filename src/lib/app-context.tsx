@@ -1,182 +1,140 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CURRENT_USER_ID, type Expense as LocalExpense, type Group as LocalGroup, type Member } from "@/lib/split";
-import { isFirebaseConfigured } from "@/lib/firebase";
-import { authService } from "@/services/authService";
-import { groupService } from "@/services/groupService";
-import { expenseService } from "@/services/expenseService";
-import type { Expense as DbExpense, Group as DbGroup } from "@/types/database";
+import { CURRENT_USER_ID, type Expense, type Group, type Member } from "@/lib/split";
+import { useAuth } from "@/lib/auth-context";
 
 type Ctx = {
   currentUserId: string;
-  groups: LocalGroup[];
-  expenses: LocalExpense[];
+  groups: Group[];
+  expenses: Expense[];
   monthlyBudget: number;
   loading: boolean;
   error: string | null;
   isLive: boolean;
-  addExpense: (e: Omit<LocalExpense, "id" | "date"> & { date?: string }) => Promise<void> | void;
-  addGroup: (g: Omit<LocalGroup, "id">) => Promise<void> | void;
-  getGroup: (id: string) => LocalGroup | undefined;
+  addExpense: (e: Omit<Expense, "id" | "date"> & { date?: string }) => void;
+  addGroup: (g: { name: string; emoji: string; memberNames?: string[] }) => string;
+  addMember: (groupId: string, name: string) => void;
+  setMonthlyBudget: (v: number) => void;
+  getGroup: (id: string) => Group | undefined;
 };
 
 const AppCtx = createContext<Ctx | null>(null);
 
-const initialMembers: Record<string, Member[]> = {
-  g_trip: [
-    { id: CURRENT_USER_ID, name: "Олег" },
-    { id: "u_andriy", name: "Андрій" },
-    { id: "u_bogdan", name: "Богдан" },
-    { id: "u_maria", name: "Марія" },
-  ],
-  g_room: [
-    { id: CURRENT_USER_ID, name: "Олег" },
-    { id: "u_ira", name: "Іра" },
-    { id: "u_sasha", name: "Саша" },
-  ],
-  g_shashlik: [
-    { id: CURRENT_USER_ID, name: "Олег" },
-    { id: "u_andriy", name: "Андрій" },
-    { id: "u_bogdan", name: "Богдан" },
-  ],
-};
+const STORAGE_KEY = "ps_app_state_v1";
 
-const initialGroups: LocalGroup[] = [
-  { id: "g_shashlik", name: "Шашлик", emoji: "🍖", members: initialMembers.g_shashlik },
-  { id: "g_trip", name: "Вікенд-подорож", emoji: "🏔️", members: initialMembers.g_trip },
-  { id: "g_room", name: "Сусіди", emoji: "🏠", members: initialMembers.g_room },
-];
+type Persisted = { groups: Group[]; expenses: Expense[]; monthlyBudget: number };
 
-const initialExpenses: LocalExpense[] = [
-  { id: "e1", groupId: "g_shashlik", description: "М'ясо", amount: 1200, payerId: "u_andriy", splitType: "equal", date: "2026-05-10" },
-  { id: "e2", groupId: "g_shashlik", description: "Напої", amount: 450, payerId: CURRENT_USER_ID, splitType: "equal", date: "2026-05-10" },
-  { id: "e3", groupId: "g_trip", description: "Бензин", amount: 800, payerId: CURRENT_USER_ID, splitType: "equal", date: "2026-05-08" },
-  { id: "e4", groupId: "g_room", description: "Комуналка", amount: 1800, payerId: "u_ira", splitType: "equal", date: "2026-05-05" },
-];
-
-function dbExpenseToLocal(e: DbExpense): LocalExpense {
+function defaultState(currentUserId: string, displayName: string): Persisted {
+  const me: Member = { id: currentUserId, name: displayName };
   return {
-    id: e.id,
-    groupId: e.groupId,
-    description: e.description,
-    amount: e.amount,
-    payerId: e.payerId,
-    splitType: e.splitType === "equal" ? "equal" : "unequal",
-    shares: e.shares,
-    recurring: e.recurring,
-    date: e.timestamp?.slice(0, 10) ?? new Date().toISOString().slice(0, 10),
-  };
-}
-
-function dbGroupToLocal(g: DbGroup): LocalGroup {
-  return {
-    id: g.id,
-    name: g.name,
-    emoji: g.emoji ?? "👥",
-    members: g.members.map((uid) => ({ id: uid, name: uid })),
+    monthlyBudget: 2000,
+    groups: [
+      {
+        id: "g_shashlik",
+        name: "Шашлик",
+        emoji: "🍖",
+        members: [me, { id: "u_andriy", name: "Андрій" }, { id: "u_bogdan", name: "Богдан" }],
+      },
+      {
+        id: "g_trip",
+        name: "Вікенд-подорож",
+        emoji: "🏔️",
+        members: [me, { id: "u_andriy", name: "Андрій" }, { id: "u_maria", name: "Марія" }],
+      },
+    ],
+    expenses: [
+      { id: "e1", groupId: "g_shashlik", description: "М'ясо", amount: 1200, payerId: "u_andriy", splitType: "equal", date: "2026-05-10" },
+      { id: "e2", groupId: "g_shashlik", description: "Напої", amount: 450, payerId: currentUserId, splitType: "equal", date: "2026-05-10" },
+      { id: "e3", groupId: "g_trip", description: "Бензин", amount: 800, payerId: currentUserId, splitType: "equal", date: "2026-05-08" },
+    ],
   };
 }
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [groups, setGroups] = useState<LocalGroup[]>(initialGroups);
-  const [expenses, setExpenses] = useState<LocalExpense[]>(initialExpenses);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [uid, setUid] = useState<string>(CURRENT_USER_ID);
+  const { user } = useAuth();
+  const uid = user?.id ?? CURRENT_USER_ID;
+  const displayName = user?.displayName ?? "Я";
 
-  const isLive = isFirebaseConfigured;
+  const storageKey = `${STORAGE_KEY}_${uid}`;
 
-  // Live mode: subscribe to auth + groups + per-group expenses
+  const [state, setState] = useState<Persisted>(() => defaultState(uid, displayName));
+
+  // Load on auth change
   useEffect(() => {
-    if (!isLive) return;
-    setLoading(true);
-    const unsubAuth = authService.onAuthChange((user) => {
-      if (!user) {
-        setLoading(false);
+    if (typeof localStorage === "undefined") return;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        setState(JSON.parse(raw));
         return;
       }
-      setUid(user.uid);
-      const unsubGroups = groupService.listenUserGroups(user.uid, (gs) => {
-        setGroups(gs.map(dbGroupToLocal));
-        setLoading(false);
-      });
-      return unsubGroups;
-    });
-    return () => {
-      if (typeof unsubAuth === "function") unsubAuth();
-    };
-  }, [isLive]);
+    } catch {
+      // ignore
+    }
+    setState(defaultState(uid, displayName));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storageKey]);
 
+  // Persist
   useEffect(() => {
-    if (!isLive || !groups.length) return;
-    const unsubs = groups.map((g) =>
-      expenseService.listenGroupExpenses(g.id, (list) => {
-        setExpenses((prev) => {
-          const others = prev.filter((e) => e.groupId !== g.id);
-          return [...others, ...list.map(dbExpenseToLocal)];
-        });
-      }),
-    );
-    return () => unsubs.forEach((u) => u && u());
-  }, [isLive, groups]);
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(storageKey, JSON.stringify(state));
+  }, [state, storageKey]);
 
-  const addExpense = useCallback<Ctx["addExpense"]>(
-    async (e) => {
-      if (isLive) {
-        try {
-          setError(null);
-          await expenseService.addExpense({
-            groupId: e.groupId,
-            payerId: e.payerId,
-            amount: e.amount,
-            description: e.description,
-            splitType: e.splitType === "equal" ? "equal" : "unequal",
-            participants: groups.find((g) => g.id === e.groupId)?.members.map((m) => m.id) ?? [],
-            shares: e.shares,
-            recurring: e.recurring,
-          });
-        } catch (err) {
-          setError((err as Error).message);
-        }
-        return;
-      }
-      setExpenses((prev) => [
+  const addExpense = useCallback<Ctx["addExpense"]>((e) => {
+    setState((s) => ({
+      ...s,
+      expenses: [
         { ...e, id: `e_${Date.now()}`, date: e.date ?? new Date().toISOString().slice(0, 10) },
-        ...prev,
-      ]);
-    },
-    [isLive, groups],
-  );
+        ...s.expenses,
+      ],
+    }));
+  }, []);
 
   const addGroup = useCallback<Ctx["addGroup"]>(
-    async (g) => {
-      if (isLive) {
-        try {
-          setError(null);
-          await groupService.createGroup({ name: g.name, emoji: g.emoji, creatorId: uid });
-        } catch (err) {
-          setError((err as Error).message);
-        }
-        return;
-      }
-      setGroups((prev) => [...prev, { ...g, id: `g_${Date.now()}` }]);
+    ({ name, emoji, memberNames = [] }) => {
+      const id = `g_${Date.now()}`;
+      const me: Member = { id: uid, name: displayName };
+      const members: Member[] = [
+        me,
+        ...memberNames.filter((n) => n.trim()).map((n, i) => ({ id: `u_${id}_${i}`, name: n.trim() })),
+      ];
+      setState((s) => ({ ...s, groups: [...s.groups, { id, name, emoji, members }] }));
+      return id;
     },
-    [isLive, uid],
+    [uid, displayName],
   );
+
+  const addMember = useCallback<Ctx["addMember"]>((groupId, name) => {
+    setState((s) => ({
+      ...s,
+      groups: s.groups.map((g) =>
+        g.id === groupId
+          ? { ...g, members: [...g.members, { id: `u_${groupId}_${Date.now()}`, name: name.trim() }] }
+          : g,
+      ),
+    }));
+  }, []);
+
+  const setMonthlyBudget = useCallback<Ctx["setMonthlyBudget"]>((v) => {
+    setState((s) => ({ ...s, monthlyBudget: v }));
+  }, []);
 
   const value = useMemo<Ctx>(
     () => ({
       currentUserId: uid,
-      groups,
-      expenses,
-      monthlyBudget: 2000,
-      loading,
-      error,
-      isLive,
+      groups: state.groups,
+      expenses: state.expenses,
+      monthlyBudget: state.monthlyBudget,
+      loading: false,
+      error: null,
+      isLive: false,
       addExpense,
       addGroup,
-      getGroup: (id) => groups.find((g) => g.id === id),
+      addMember,
+      setMonthlyBudget,
+      getGroup: (id) => state.groups.find((g) => g.id === id),
     }),
-    [uid, groups, expenses, loading, error, isLive, addExpense, addGroup],
+    [uid, state, addExpense, addGroup, addMember, setMonthlyBudget],
   );
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;

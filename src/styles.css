@@ -37,6 +37,26 @@
   --color-surface-elevated: var(--surface-elevated);
 }
 
+html:not(.dark) {
+  --background: oklch(0.985 0.005 280);
+  --foreground: oklch(0.18 0.02 280);
+  --surface: oklch(0.97 0.01 280);
+  --surface-elevated: oklch(1 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.02 280);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.02 280);
+  --secondary: oklch(0.94 0.01 280);
+  --secondary-foreground: oklch(0.2 0.02 280);
+  --muted: oklch(0.94 0.01 280);
+  --muted-foreground: oklch(0.45 0.02 280);
+  --accent: oklch(0.94 0.04 295);
+  --accent-foreground: oklch(0.2 0.02 280);
+  --border: oklch(0.9 0.01 280);
+  --input: oklch(0.94 0.01 280);
+  --shadow-card: 0 8px 30px -10px oklch(0.55 0.1 280 / 0.15);
+}
+
 :root {
   --radius: 1rem;
   --background: oklch(0.18 0.02 280);
