@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as FavoritesRouteImport } from './routes/favorites'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
@@ -18,6 +19,11 @@ import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FavoritesRoute = FavoritesRouteImport.update({
@@ -44,6 +50,7 @@ const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/favorites': typeof FavoritesRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/groups/': typeof GroupsIndexRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/favorites': typeof FavoritesRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/groups': typeof GroupsIndexRoute
@@ -59,19 +67,27 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/favorites': typeof FavoritesRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/groups/': typeof GroupsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/favorites' | '/search' | '/groups/$groupId' | '/groups/'
+  fullPaths:
+    | '/'
+    | '/favorites'
+    | '/login'
+    | '/search'
+    | '/groups/$groupId'
+    | '/groups/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/favorites' | '/search' | '/groups/$groupId' | '/groups'
+  to: '/' | '/favorites' | '/login' | '/search' | '/groups/$groupId' | '/groups'
   id:
     | '__root__'
     | '/'
     | '/favorites'
+    | '/login'
     | '/search'
     | '/groups/$groupId'
     | '/groups/'
@@ -80,6 +96,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FavoritesRoute: typeof FavoritesRoute
+  LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   GroupsGroupIdRoute: typeof GroupsGroupIdRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
@@ -92,6 +109,13 @@ declare module '@tanstack/react-router' {
       path: '/search'
       fullPath: '/search'
       preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/favorites': {
@@ -128,6 +152,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FavoritesRoute: FavoritesRoute,
+  LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   GroupsGroupIdRoute: GroupsGroupIdRoute,
   GroupsIndexRoute: GroupsIndexRoute,
@@ -135,3 +160,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
