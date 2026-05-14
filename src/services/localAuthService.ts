@@ -23,10 +23,10 @@ function readUsers(): StoredUser[] {
   try {
     const arr = JSON.parse(localStorage.getItem(USERS_KEY) ?? "[]") as StoredUser[];
     return arr.map((u) => ({
-      contacts: [],
-      favoriteGroups: [],
-      username: u.username ?? u.email.split("@")[0],
       ...u,
+      username: u.username ?? u.email.split("@")[0],
+      contacts: u.contacts ?? [],
+      favoriteGroups: u.favoriteGroups ?? [],
     }));
   } catch {
     return [];
