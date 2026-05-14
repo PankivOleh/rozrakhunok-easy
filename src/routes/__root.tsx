@@ -77,18 +77,25 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 const PUBLIC_PATHS = new Set(["/login", "/register"]);
 
+function isPublicPath(pathname: string) {
+  if (PUBLIC_PATHS.has(pathname)) return true;
+  // Invite links must be openable while logged out — they redirect to /login themselves.
+  if (pathname.startsWith("/invite/")) return true;
+  return false;
+}
+
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const isPublic = PUBLIC_PATHS.has(location.pathname);
+  const isPublic = isPublicPath(location.pathname);
 
   useEffect(() => {
     if (loading) return;
     if (!user && !isPublic) {
-      navigate({ to: "/login" });
+      navigate({ to: "/login", search: { redirect: location.pathname } });
     }
-  }, [user, loading, isPublic, navigate]);
+  }, [user, loading, isPublic, navigate, location.pathname]);
 
   if (loading) {
     return (

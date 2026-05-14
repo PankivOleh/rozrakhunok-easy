@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, useSearch } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
@@ -8,6 +8,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
   head: () => ({ meta: [{ title: "Вхід — Оплата та Поділ" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({ redirect: typeof s.redirect === "string" ? s.redirect : "" }),
   component: LoginPage,
 });
 
@@ -15,20 +16,21 @@ function LoginPage() {
   const { signIn, user } = useAuth();
   const { t } = useI18n();
   const navigate = useNavigate();
+  const search = useSearch({ from: "/login" });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (user) navigate({ to: "/" });
-  }, [user, navigate]);
+    if (user) navigate({ to: search.redirect || "/" });
+  }, [user, navigate, search.redirect]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     try {
-      await signIn(email, password);
-      navigate({ to: "/" });
+      await signIn(email.trim(), password);
+      navigate({ to: search.redirect || "/" });
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -51,7 +53,7 @@ function LoginPage() {
             {busy ? "..." : t("auth.submitLogin")}
           </Button>
         </form>
-        <Link to="/register" className="block text-center text-sm text-primary mt-4">
+        <Link to="/register" search={{ redirect: search.redirect }} className="block text-center text-sm text-primary mt-4">
           {t("auth.toRegister")}
         </Link>
       </div>

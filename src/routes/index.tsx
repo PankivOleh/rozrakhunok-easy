@@ -4,6 +4,7 @@ import { MobileShell } from "@/components/MobileShell";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { AddGroupDialog } from "@/components/AddGroupDialog";
+import { FavoriteToggle } from "@/components/FavoriteToggle";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  const { groups, expenses, currentUserId, monthlyBudget } = useApp();
+  const { groups, expenses, settlements, currentUserId, monthlyBudget } = useApp();
   const { user } = useAuth();
   const { t } = useI18n();
 
@@ -30,13 +31,13 @@ function Dashboard() {
     let owedToMe = 0;
     let iOwe = 0;
     for (const g of groups) {
-      const bal = calcMemberBalances(g, expenses);
+      const bal = calcMemberBalances(g, expenses, settlements);
       const v = bal[currentUserId] ?? 0;
       if (v > 0) owedToMe += v;
       else iOwe += -v;
     }
     return { totalOwedToMe: owedToMe, totalIOwe: iOwe, net: owedToMe - iOwe };
-  }, [groups, expenses, currentUserId]);
+  }, [groups, expenses, settlements, currentUserId]);
 
   const monthSpent = useMemo(() => {
     const m = new Date().toISOString().slice(0, 7);
@@ -100,16 +101,20 @@ function Dashboard() {
             <p className="text-sm text-muted-foreground py-4">{t("common.empty")}</p>
           )}
           {groups.map((g) => (
-            <Link
-              key={g.id}
-              to="/groups/$groupId"
-              params={{ groupId: g.id }}
-              className="shrink-0 w-40 rounded-2xl bg-card border border-border p-4 shadow-card hover:border-primary/50 transition"
-            >
-              <div className="size-10 rounded-xl bg-accent flex items-center justify-center text-xl">{g.emoji}</div>
-              <p className="mt-3 font-semibold text-sm">{g.name}</p>
-              <p className="text-xs text-muted-foreground">{g.members.length} {t("groups.members")}</p>
-            </Link>
+            <div key={g.id} className="relative shrink-0 w-40">
+              <Link
+                to="/groups/$groupId"
+                params={{ groupId: g.id }}
+                className="block rounded-2xl bg-card border border-border p-4 shadow-card hover:border-primary/50 transition"
+              >
+                <div className="size-10 rounded-xl bg-accent flex items-center justify-center text-xl">{g.emoji}</div>
+                <p className="mt-3 font-semibold text-sm pr-6">{g.name}</p>
+                <p className="text-xs text-muted-foreground">{g.members.length} {t("groups.members")}</p>
+              </Link>
+              <div className="absolute top-2 right-2">
+                <FavoriteToggle groupId={g.id} />
+              </div>
+            </div>
           ))}
           <AddGroupDialog
             trigger={
