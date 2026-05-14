@@ -14,8 +14,10 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as FavoritesRouteImport } from './routes/favorites'
+import { Route as ContactsRouteImport } from './routes/contacts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GroupsIndexRouteImport } from './routes/groups.index'
+import { Route as InviteGroupIdRouteImport } from './routes/invite.$groupId'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 
 const SearchRoute = SearchRouteImport.update({
@@ -43,6 +45,11 @@ const FavoritesRoute = FavoritesRouteImport.update({
   path: '/favorites',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContactsRoute = ContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -53,6 +60,11 @@ const GroupsIndexRoute = GroupsIndexRouteImport.update({
   path: '/groups/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InviteGroupIdRoute = InviteGroupIdRouteImport.update({
+  id: '/invite/$groupId',
+  path: '/invite/$groupId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
   id: '/groups/$groupId',
   path: '/groups/$groupId',
@@ -61,76 +73,90 @@ const GroupsGroupIdRoute = GroupsGroupIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRoute
   '/favorites': typeof FavoritesRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/invite/$groupId': typeof InviteGroupIdRoute
   '/groups/': typeof GroupsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRoute
   '/favorites': typeof FavoritesRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/invite/$groupId': typeof InviteGroupIdRoute
   '/groups': typeof GroupsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contacts': typeof ContactsRoute
   '/favorites': typeof FavoritesRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
   '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
+  '/invite/$groupId': typeof InviteGroupIdRoute
   '/groups/': typeof GroupsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contacts'
     | '/favorites'
     | '/login'
     | '/profile'
     | '/register'
     | '/search'
     | '/groups/$groupId'
+    | '/invite/$groupId'
     | '/groups/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/contacts'
     | '/favorites'
     | '/login'
     | '/profile'
     | '/register'
     | '/search'
     | '/groups/$groupId'
+    | '/invite/$groupId'
     | '/groups'
   id:
     | '__root__'
     | '/'
+    | '/contacts'
     | '/favorites'
     | '/login'
     | '/profile'
     | '/register'
     | '/search'
     | '/groups/$groupId'
+    | '/invite/$groupId'
     | '/groups/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContactsRoute: typeof ContactsRoute
   FavoritesRoute: typeof FavoritesRoute
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
   SearchRoute: typeof SearchRoute
   GroupsGroupIdRoute: typeof GroupsGroupIdRoute
+  InviteGroupIdRoute: typeof InviteGroupIdRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
 }
 
@@ -171,6 +197,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FavoritesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contacts': {
+      id: '/contacts'
+      path: '/contacts'
+      fullPath: '/contacts'
+      preLoaderRoute: typeof ContactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -185,6 +218,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GroupsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/invite/$groupId': {
+      id: '/invite/$groupId'
+      path: '/invite/$groupId'
+      fullPath: '/invite/$groupId'
+      preLoaderRoute: typeof InviteGroupIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/groups/$groupId': {
       id: '/groups/$groupId'
       path: '/groups/$groupId'
@@ -197,14 +237,26 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContactsRoute: ContactsRoute,
   FavoritesRoute: FavoritesRoute,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
   SearchRoute: SearchRoute,
   GroupsGroupIdRoute: GroupsGroupIdRoute,
+  InviteGroupIdRoute: InviteGroupIdRoute,
   GroupsIndexRoute: GroupsIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

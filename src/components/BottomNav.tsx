@@ -1,5 +1,5 @@
 import { Link, useLocation, useRouter } from "@tanstack/react-router";
-import { ChevronLeft, List, Plus, Heart, Search } from "lucide-react";
+import { ChevronLeft, Users, Plus, Heart, Home } from "lucide-react";
 import { AddExpenseDialog } from "./AddExpenseDialog";
 
 export function BottomNav() {
@@ -17,13 +17,13 @@ export function BottomNav() {
           <ChevronLeft className="size-5" />
         </button>
         <Link
-          to="/groups"
-          aria-label="Список"
+          to="/contacts"
+          aria-label="Контакти"
           className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition ${
-            loc.pathname.startsWith("/groups") ? "text-primary" : "text-muted-foreground"
+            loc.pathname.startsWith("/contacts") ? "text-primary" : "text-muted-foreground"
           }`}
         >
-          <List className="size-5" />
+          <Users className="size-5" />
         </Link>
 
         <AddExpenseDialog
@@ -47,13 +47,13 @@ export function BottomNav() {
           <Heart className="size-5" />
         </Link>
         <Link
-          to="/search"
-          aria-label="Пошук"
+          to="/"
+          aria-label="Головна"
           className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-2xl transition ${
-            loc.pathname === "/search" ? "text-primary" : "text-muted-foreground"
+            loc.pathname === "/" ? "text-primary" : "text-muted-foreground"
           }`}
         >
-          <Search className="size-5" />
+          <Home className="size-5" />
         </Link>
       </nav>
     </div>
