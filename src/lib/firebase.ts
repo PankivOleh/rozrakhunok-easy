@@ -12,12 +12,12 @@ import { getFunctions, type Functions } from "firebase/functions";
  * Дізнатись де взяти ключі: Firebase Console → Project settings → Your apps → SDK setup.
  */
 export const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "",
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "",
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "",
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY ?? "AIzaSyBSdDaBWeWzylte7hOu4kKr49UufXGyTpU",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN ?? "payandsplit.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID ?? "payandsplit",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? "payandsplit.firebasestorage.app",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID ?? "269029362945",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID ?? "1:269029362945:web:f05c5ec916954a9a051f00",
 };
 
 export const isFirebaseConfigured = Boolean(
