@@ -4,6 +4,7 @@ import { MobileShell } from "@/components/MobileShell";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { AddGroupDialog } from "@/components/AddGroupDialog";
+import { FavoriteToggle } from "@/components/FavoriteToggle";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
