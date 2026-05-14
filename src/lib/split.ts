@@ -13,9 +13,32 @@ export type Expense = {
   amount: number;
   payerId: string;
   splitType: SplitType;
-  shares?: Record<string, number>; // memberId -> amount (for unequal)
+  shares?: Record<string, number>;
   recurring?: boolean;
   date: string;
+};
+
+/** Recorded settle-up payment from one member to another. */
+export type SettlementRecord = {
+  id: string;
+  groupId: string;
+  fromId: string;
+  toId: string;
+  amount: number;
+  date: string;
+};
+
+export type ReminderFrequency = "daily" | "weekly" | "monthly";
+
+/** Scheduled reminder configured by a creditor against a debtor. */
+export type ScheduledReminder = {
+  id: string;
+  groupId: string;
+  creditorId: string;
+  debtorId: string;
+  frequency: ReminderFrequency;
+  lastRemindedAt: string | null;
+  createdAt: string;
 };
 
 export type Group = {
@@ -37,28 +60,34 @@ export function formatUAH(value: number): string {
   return `${value.toLocaleString("uk-UA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₴`;
 }
 
-export function calcMemberBalances(group: Group, expenses: Expense[]): Record<string, number> {
+export function calcMemberBalances(
+  group: Group,
+  expenses: Expense[],
+  settlements: SettlementRecord[] = [],
+): Record<string, number> {
   const balances: Record<string, number> = {};
   group.members.forEach((m) => (balances[m.id] = 0));
-  const groupExpenses = expenses.filter((e) => e.groupId === group.id);
 
-  for (const e of groupExpenses) {
+  for (const e of expenses.filter((e) => e.groupId === group.id)) {
     balances[e.payerId] = (balances[e.payerId] ?? 0) + e.amount;
     if (e.splitType === "equal") {
       const share = e.amount / group.members.length;
-      group.members.forEach((m) => {
-        balances[m.id] -= share;
-      });
+      group.members.forEach((m) => { balances[m.id] -= share; });
     } else if (e.shares) {
       for (const [mid, amt] of Object.entries(e.shares)) {
         balances[mid] = (balances[mid] ?? 0) - amt;
       }
     }
   }
+
+  // Apply settle-ups: debtor pays creditor cash → debtor balance up, creditor down.
+  for (const s of settlements.filter((s) => s.groupId === group.id)) {
+    balances[s.fromId] = (balances[s.fromId] ?? 0) + s.amount;
+    balances[s.toId] = (balances[s.toId] ?? 0) - s.amount;
+  }
   return balances;
 }
 
-// Greedy minimization
 export function optimizeSettlements(balances: Record<string, number>): Settlement[] {
   const entries = Object.entries(balances).map(([id, v]) => ({ id, v: Math.round(v * 100) / 100 }));
   const debtors = entries.filter((e) => e.v < -0.01).map((e) => ({ ...e }));

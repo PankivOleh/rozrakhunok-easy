@@ -5,8 +5,12 @@ type Ctx = {
   user: LocalUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, displayName: string) => Promise<void>;
+  signUp: (email: string, password: string, displayName: string, username: string) => Promise<void>;
   signOut: () => Promise<void>;
+  updateUser: (patch: Partial<LocalUser>) => Promise<void>;
+  toggleFavorite: (groupId: string) => Promise<void>;
+  addContact: (userId: string) => Promise<void>;
+  removeContact: (userId: string) => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
@@ -28,8 +32,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       signIn: async (e, p) => { await localAuthService.signIn(e, p); },
-      signUp: async (e, p, n) => { await localAuthService.signUp(e, p, n); },
+      signUp: async (e, p, n, un) => { await localAuthService.signUp(e, p, n, un); },
       signOut: async () => { await localAuthService.signOut(); },
+      updateUser: async (patch) => {
+        if (!user) return;
+        await localAuthService.updateUser(user.id, patch);
+      },
+      toggleFavorite: async (groupId) => {
+        if (!user) return;
+        const fav = user.favoriteGroups ?? [];
+        const next = fav.includes(groupId) ? fav.filter((x) => x !== groupId) : [...fav, groupId];
+        await localAuthService.updateUser(user.id, { favoriteGroups: next });
+      },
+      addContact: async (userId) => {
+        if (!user || userId === user.id) return;
+        const cs = user.contacts ?? [];
+        if (cs.includes(userId)) return;
+        await localAuthService.updateUser(user.id, { contacts: [...cs, userId] });
+      },
+      removeContact: async (userId) => {
+        if (!user) return;
+        await localAuthService.updateUser(user.id, {
+          contacts: (user.contacts ?? []).filter((x) => x !== userId),
+        });
+      },
     }),
     [user, loading],
   );
