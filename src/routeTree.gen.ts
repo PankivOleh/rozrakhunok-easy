@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SearchRouteImport } from './routes/search'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as LoginRouteImport } from './routes/login'
@@ -20,11 +19,6 @@ import { Route as GroupsIndexRouteImport } from './routes/groups.index'
 import { Route as InviteGroupIdRouteImport } from './routes/invite.$groupId'
 import { Route as GroupsGroupIdRouteImport } from './routes/groups.$groupId'
 
-const SearchRoute = SearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -78,7 +72,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
-  '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/invite/$groupId': typeof InviteGroupIdRoute
   '/groups/': typeof GroupsIndexRoute
@@ -90,7 +83,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
-  '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/invite/$groupId': typeof InviteGroupIdRoute
   '/groups': typeof GroupsIndexRoute
@@ -103,7 +95,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
   '/register': typeof RegisterRoute
-  '/search': typeof SearchRoute
   '/groups/$groupId': typeof GroupsGroupIdRoute
   '/invite/$groupId': typeof InviteGroupIdRoute
   '/groups/': typeof GroupsIndexRoute
@@ -117,7 +108,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
-    | '/search'
     | '/groups/$groupId'
     | '/invite/$groupId'
     | '/groups/'
@@ -129,7 +119,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
-    | '/search'
     | '/groups/$groupId'
     | '/invite/$groupId'
     | '/groups'
@@ -141,7 +130,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/profile'
     | '/register'
-    | '/search'
     | '/groups/$groupId'
     | '/invite/$groupId'
     | '/groups/'
@@ -154,7 +142,6 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
   RegisterRoute: typeof RegisterRoute
-  SearchRoute: typeof SearchRoute
   GroupsGroupIdRoute: typeof GroupsGroupIdRoute
   InviteGroupIdRoute: typeof InviteGroupIdRoute
   GroupsIndexRoute: typeof GroupsIndexRoute
@@ -162,13 +149,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/search': {
-      id: '/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof SearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -242,7 +222,6 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
   RegisterRoute: RegisterRoute,
-  SearchRoute: SearchRoute,
   GroupsGroupIdRoute: GroupsGroupIdRoute,
   InviteGroupIdRoute: InviteGroupIdRoute,
   GroupsIndexRoute: GroupsIndexRoute,
@@ -250,3 +229,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
