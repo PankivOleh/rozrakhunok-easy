@@ -47,7 +47,7 @@ function InvitePage() {
   }
 
   const group = getGroup(groupId);
-  const alreadyMember = group?.members.some((m) => m.id === user.id);
+  const alreadyMember = group?.members.some((m) => m.id === user.id) ?? false;
 
   const accept = async () => {
     setBusy(true);
@@ -72,7 +72,7 @@ function InvitePage() {
         <p className="mt-2 text-sm text-muted-foreground">
           {group
             ? `${group.members.length} учасників`
-            : "Групу не знайдено в цьому пристрої. Якщо ви відкрили посилання іншого користувача, попросіть його надіслати оновлене запрошення."}
+            : "Після підтвердження вас буде додано до групи в Firebase."}
         </p>
 
         {alreadyMember ? (
@@ -82,7 +82,7 @@ function InvitePage() {
               Відкрити групу
             </Button>
           </div>
-        ) : group ? (
+        ) : (
           <div className="mt-8 space-y-3">
             <Button onClick={accept} disabled={busy} className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-glow">
               <Users className="size-4 mr-2" /> {busy ? "..." : "Приєднатися"}
@@ -91,10 +91,6 @@ function InvitePage() {
               Скасувати
             </Button>
           </div>
-        ) : (
-          <Button onClick={() => navigate({ to: "/" })} className="mt-8 w-full h-12 rounded-xl">
-            На головну
-          </Button>
         )}
       </div>
     </MobileShell>
