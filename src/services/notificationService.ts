@@ -1,28 +1,115 @@
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  onSnapshot,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+  where,
+  writeBatch,
+  type Unsubscribe,
+} from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase";
-import type { Expense, Transaction } from "@/types/database";
+import type { InAppNotification } from "@/types/database";
 
-/**
- * Firebase Cloud Messaging (FCM) wrapper.
- * Token registration runs on the client; sending push notifications
- * must be performed by a Cloud Function (Admin SDK) for security.
- */
+function ensureDb() {
+  const { db } = getFirebase();
+  if (!db) throw new Error("Firebase не налаштовано");
+  return db;
+}
+
+function toIso(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function normalizeNotification(id: string, data: Record<string, unknown>): InAppNotification {
+  return {
+    id,
+    toUserId: String(data.toUserId ?? ""),
+    fromUserId: String(data.fromUserId ?? ""),
+    groupId: data.groupId as string | undefined,
+    debtId: data.debtId as string | undefined,
+    type: (data.type as InAppNotification["type"]) ?? "remind",
+    message: String(data.message ?? "Сповіщення"),
+    amount: typeof data.amount === "number" ? data.amount : undefined,
+    read: Boolean(data.read),
+    createdAt: toIso(data.createdAt),
+  };
+}
+
 export const notificationService = {
+  async create(input: Omit<InAppNotification, "id" | "createdAt" | "read">): Promise<string> {
+    const db = ensureDb();
+    const ref = await addDoc(collection(db, "notifications"), {
+      ...input,
+      read: false,
+      createdAt: serverTimestamp(),
+    });
+    return ref.id;
+  },
+
+  async sendDebtReminder(input: {
+    groupId: string;
+    debtorId: string;
+    creditorId: string;
+    message: string;
+    amount: number;
+    debtId?: string;
+  }): Promise<string> {
+    return this.create({
+      toUserId: input.debtorId,
+      fromUserId: input.creditorId,
+      groupId: input.groupId,
+      debtId: input.debtId,
+      type: "remind",
+      message: input.message,
+      amount: input.amount,
+    });
+  },
+
+  listenUserNotifications(userId: string, cb: (notifications: InAppNotification[]) => void, onError?: (error: Error) => void): Unsubscribe {
+    const db = ensureDb();
+    const q = query(collection(db, "notifications"), where("toUserId", "==", userId), orderBy("createdAt", "desc"));
+    return onSnapshot(
+      q,
+      (snap) => cb(snap.docs.map((d) => normalizeNotification(d.id, d.data()))),
+      (error) => onError?.(error),
+    );
+  },
+
+  async markAllRead(notifications: InAppNotification[]) {
+    const db = ensureDb();
+    const unread = notifications.filter((n) => !n.read);
+    if (!unread.length) return;
+    const batch = writeBatch(db);
+    unread.forEach((n) => batch.update(doc(db, "notifications", n.id), { read: true }));
+    await batch.commit();
+  },
+
+  async clearUserNotifications(userId: string, notifications: InAppNotification[]) {
+    const db = ensureDb();
+    await Promise.all(notifications.filter((n) => n.toUserId === userId).map((n) => deleteDoc(doc(db, "notifications", n.id))));
+  },
+
   /** Request browser notification permission and obtain an FCM token. */
   async requestPermissionAndToken(vapidKey: string): Promise<string | null> {
     if (typeof window === "undefined" || !("Notification" in window)) return null;
     const { app } = getFirebase();
     if (!app) return null;
-
     try {
       const { getMessaging, getToken, isSupported } = await import("firebase/messaging");
       if (!(await isSupported())) return null;
-
       const permission = await Notification.requestPermission();
       if (permission !== "granted") return null;
-
       const messaging = getMessaging(app);
-      const token = await getToken(messaging, { vapidKey });
-      return token ?? null;
+      return (await getToken(messaging, { vapidKey })) ?? null;
     } catch (err) {
       console.error("FCM token error:", err);
       return null;
@@ -34,31 +121,6 @@ export const notificationService = {
     if (!app) return () => {};
     const { getMessaging, onMessage, isSupported } = await import("firebase/messaging");
     if (!(await isSupported())) return () => {};
-    const messaging = getMessaging(app);
-    return onMessage(messaging, cb);
-  },
-
-  /**
-   * Notify members of a new expense. In production this calls a callable
-   * Cloud Function that uses Admin SDK to send to FCM tokens.
-   */
-  async notifyNewExpense(groupId: string, expense: Omit<Expense, "id" | "timestamp">, settlements: Transaction[]) {
-    const { functions } = getFirebase();
-    if (!functions) return;
-    try {
-      const { httpsCallable } = await import("firebase/functions");
-      const fn = httpsCallable(functions, "notifyNewExpense");
-      await fn({ groupId, expense, settlements });
-    } catch (err) {
-      console.warn("notifyNewExpense skipped:", err);
-    }
-  },
-
-  async sendDebtReminder(transaction: Transaction) {
-    const { functions } = getFirebase();
-    if (!functions) return;
-    const { httpsCallable } = await import("firebase/functions");
-    const fn = httpsCallable(functions, "sendDebtReminder");
-    await fn({ transaction });
+    return onMessage(getMessaging(app), cb);
   },
 };
