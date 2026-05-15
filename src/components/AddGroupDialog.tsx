@@ -14,21 +14,25 @@ export function AddGroupDialog({ trigger }: { trigger: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState(EMOJIS[0]);
-  const [membersText, setMembersText] = useState("");
+  const [busy, setBusy] = useState(false);
 
-  const submit = () => {
+  const submit = async () => {
     if (!name.trim()) {
       toast.error("Введіть назву");
       return;
     }
-    addGroup({
-      name: name.trim(),
-      emoji,
-      memberNames: membersText.split(",").map((s) => s.trim()).filter(Boolean),
-    });
-    toast.success("✓");
-    setName(""); setMembersText(""); setEmoji(EMOJIS[0]);
-    setOpen(false);
+    setBusy(true);
+    try {
+      await addGroup({ name: name.trim(), emoji });
+      toast.success("Групу створено");
+      setName("");
+      setEmoji(EMOJIS[0]);
+      setOpen(false);
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -56,9 +60,9 @@ export function AddGroupDialog({ trigger }: { trigger: React.ReactNode }) {
               ))}
             </div>
           </div>
-          <Input value={membersText} onChange={(e) => setMembersText(e.target.value)} placeholder="Учасники через кому (необов'язково)" className="h-12 rounded-xl" />
-          <Button onClick={submit} className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-glow">
-            {t("common.add")}
+          <p className="text-xs text-muted-foreground">Учасників додавайте через запрошення або пошук за username.</p>
+          <Button disabled={busy} onClick={submit} className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-glow">
+            {busy ? "..." : t("common.add")}
           </Button>
         </div>
       </DialogContent>
