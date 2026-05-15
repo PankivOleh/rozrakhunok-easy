@@ -7,7 +7,6 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  updateDoc,
   where,
   writeBatch,
   type Unsubscribe,
