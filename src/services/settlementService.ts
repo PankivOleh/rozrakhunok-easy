@@ -1,80 +1,82 @@
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-} from "firebase/firestore";
+import { collection, doc, getDoc, getDocs } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase";
 import type { Expense, Group, MemberBalance, Transaction } from "@/types/database";
 
-/**
- * Smart Settlement service.
- * Computes net balances per member and minimizes the number of
- * transactions needed to settle all debts (greedy algorithm).
- */
-export const settlementService = {
-  calcBalances(group: Pick<Group, "members">, expenses: Expense[]): MemberBalance[] {
-    const balances: Record<string, number> = {};
-    group.members.forEach((m) => (balances[m] = 0));
+function ensureDb() {
+  const { db } = getFirebase();
+  if (!db) throw new Error("Firebase не налаштовано");
+  return db;
+}
 
-    for (const e of expenses) {
-      balances[e.payerId] = (balances[e.payerId] ?? 0) + e.amount;
-      const participants = e.participants?.length ? e.participants : group.members;
-      if (e.splitType === "equal") {
-        const share = e.amount / participants.length;
-        participants.forEach((p) => (balances[p] = (balances[p] ?? 0) - share));
-      } else if (e.shares) {
-        for (const [uid, amt] of Object.entries(e.shares)) {
-          balances[uid] = (balances[uid] ?? 0) - amt;
-        }
+export const settlementService = {
+  calcBalances(group: Pick<Group, "id" | "members">, expenses: Expense[], settled: Transaction[] = []): MemberBalance[] {
+    const balances: Record<string, number> = {};
+    group.members.forEach((memberId) => (balances[memberId] = 0));
+
+    for (const expense of expenses) {
+      balances[expense.payerId] = (balances[expense.payerId] ?? 0) + expense.amount;
+      const participants = expense.participants?.length ? expense.participants : group.members;
+      if (expense.splitType === "equal") {
+        const share = expense.amount / participants.length;
+        participants.forEach((memberId) => (balances[memberId] = (balances[memberId] ?? 0) - share));
+      } else if (expense.shares) {
+        Object.entries(expense.shares).forEach(([memberId, amount]) => {
+          balances[memberId] = (balances[memberId] ?? 0) - amount;
+        });
       }
     }
+
+    for (const settlement of settled) {
+      balances[settlement.fromId] = (balances[settlement.fromId] ?? 0) + settlement.amount;
+      balances[settlement.toId] = (balances[settlement.toId] ?? 0) - settlement.amount;
+    }
+
     return Object.entries(balances).map(([userId, balance]) => ({ userId, balance }));
   },
 
-  optimize(balances: MemberBalance[]): Transaction[] {
+  optimize(groupId: string, balances: MemberBalance[]): Transaction[] {
     const round = (n: number) => Math.round(n * 100) / 100;
-    const debtors = balances
-      .filter((b) => b.balance < -0.01)
-      .map((b) => ({ id: b.userId, v: round(b.balance) }))
-      .sort((a, b) => a.v - b.v);
-    const creditors = balances
-      .filter((b) => b.balance > 0.01)
-      .map((b) => ({ id: b.userId, v: round(b.balance) }))
-      .sort((a, b) => b.v - a.v);
+    const debtors = balances.filter((b) => b.balance < -0.01).map((b) => ({ id: b.userId, value: round(b.balance) })).sort((a, b) => a.value - b.value);
+    const creditors = balances.filter((b) => b.balance > 0.01).map((b) => ({ id: b.userId, value: round(b.balance) })).sort((a, b) => b.value - a.value);
+    const now = new Date().toISOString();
+    const transactions: Transaction[] = [];
+    let debtorIndex = 0;
+    let creditorIndex = 0;
 
-    const txs: Transaction[] = [];
-    let i = 0;
-    let j = 0;
-    while (i < debtors.length && j < creditors.length) {
-      const amount = Math.min(-debtors[i].v, creditors[j].v);
-      txs.push({
-        from: debtors[i].id,
-        to: creditors[j].id,
+    while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
+      const debtor = debtors[debtorIndex];
+      const creditor = creditors[creditorIndex];
+      const amount = Math.min(-debtor.value, creditor.value);
+      transactions.push({
+        id: `${debtor.id}_${creditor.id}_${transactions.length}`,
+        groupId,
+        fromId: debtor.id,
+        toId: creditor.id,
         amount: round(amount),
         isSettled: false,
-        timestamp: new Date().toISOString(),
+        timestamp: now,
+        createdBy: "system",
       });
-      debtors[i].v += amount;
-      creditors[j].v -= amount;
-      if (Math.abs(debtors[i].v) < 0.01) i++;
-      if (Math.abs(creditors[j].v) < 0.01) j++;
+      debtor.value += amount;
+      creditor.value -= amount;
+      if (Math.abs(debtor.value) < 0.01) debtorIndex++;
+      if (Math.abs(creditor.value) < 0.01) creditorIndex++;
     }
-    return txs;
+
+    return transactions;
   },
 
-  /** Convenience: pull live data from Firestore and produce optimized transactions. */
   async recalculateForGroup(groupId: string): Promise<Transaction[]> {
-    const { db } = getFirebase();
-    if (!db) return [];
-    const groupSnap = await getDocs(
-      query(collection(db, "groups"), where("__name__", "==", groupId)),
-    );
-    const group = groupSnap.docs[0]?.data() as Group | undefined;
-    if (!group) return [];
-    const expSnap = await getDocs(query(collection(db, "expenses"), where("groupId", "==", groupId)));
-    const expenses = expSnap.docs.map((d) => ({ id: d.id, ...d.data() }) as Expense);
-    const balances = this.calcBalances(group, expenses);
-    return this.optimize(balances);
+    const db = ensureDb();
+    const groupSnap = await getDoc(doc(db, "groups", groupId));
+    if (!groupSnap.exists()) return [];
+    const group = { id: groupSnap.id, ...groupSnap.data() } as Group;
+    const [expenseSnap, settlementSnap] = await Promise.all([
+      getDocs(collection(db, "groups", groupId, "expenses")),
+      getDocs(collection(db, "groups", groupId, "settlements")),
+    ]);
+    const expenses = expenseSnap.docs.map((d) => ({ id: d.id, groupId, ...d.data() }) as Expense);
+    const settlements = settlementSnap.docs.map((d) => ({ id: d.id, groupId, ...d.data() }) as Transaction);
+    return this.optimize(groupId, this.calcBalances(group, expenses, settlements));
   },
 };
