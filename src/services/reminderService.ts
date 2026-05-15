@@ -7,7 +7,6 @@ import {
   query,
   serverTimestamp,
   updateDoc,
-  where,
   type Unsubscribe,
 } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase";
@@ -66,16 +65,6 @@ export const reminderService = {
   async cancelReminder(groupId: string, reminderId: string) {
     const db = ensureDb();
     await deleteDoc(doc(db, "groups", groupId, "debtReminders", reminderId));
-  },
-
-  listenUserConfiguredReminders(userId: string, cb: (reminders: ScheduledReminder[]) => void, onError?: (error: Error) => void): Unsubscribe {
-    const db = ensureDb();
-    const q = query(collection(db, "groupDebtReminders"), where("creditorId", "==", userId));
-    return onSnapshot(
-      q,
-      (snap) => cb(snap.docs.map((d) => normalizeReminder(d.id, d.data()))),
-      (error) => onError?.(error),
-    );
   },
 
   listenGroupReminders(groupId: string, cb: (reminders: ScheduledReminder[]) => void, onError?: (error: Error) => void): Unsubscribe {
