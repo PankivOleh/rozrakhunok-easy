@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
-import { localAuthService, type LocalUser } from "@/services/localAuthService";
+import { authService } from "@/services/authService";
+import type { PublicUser } from "@/types/database";
 import { toast } from "sonner";
 import { UserPlus } from "lucide-react";
 
@@ -12,25 +13,31 @@ export function AddMemberDialog({ trigger, groupId }: { trigger: React.ReactNode
   const { addMember } = useApp();
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
   const [query, setQuery] = useState("");
+  const [results, setResults] = useState<PublicUser[]>([]);
+  const [searching, setSearching] = useState(false);
 
-  const results: LocalUser[] = query.trim()
-    ? localAuthService.searchByUsername(query).filter((u) => u.id !== user?.id)
-    : (user?.contacts ?? []).map((id) => localAuthService.getById(id)).filter(Boolean) as LocalUser[];
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return; }
+    setSearching(true);
+    const timer = setTimeout(() => {
+      authService.searchUsers(query)
+        .then((items) => setResults(items.filter((item) => item.id !== user?.id)))
+        .catch((err) => toast.error((err as Error).message))
+        .finally(() => setSearching(false));
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [query, user?.id]);
 
-  const submitFree = () => {
-    if (!name.trim()) { toast.error("Введіть імʼя"); return; }
-    addMember(groupId, { name });
-    toast.success("Додано");
-    setName("");
-    setOpen(false);
-  };
-
-  const addRegistered = (u: LocalUser) => {
-    addMember(groupId, { id: u.id, name: u.displayName });
-    toast.success(`${u.displayName} додано`);
-    setOpen(false);
+  const addRegistered = async (u: PublicUser) => {
+    try {
+      await addMember(groupId, { id: u.id, name: u.displayName });
+      toast.success(`${u.displayName} додано`);
+      setOpen(false);
+      setQuery("");
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   return (
@@ -41,24 +48,16 @@ export function AddMemberDialog({ trigger, groupId }: { trigger: React.ReactNode
           <DialogTitle>Додати учасника</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Пошук за @username або імʼям"
-            className="h-11 rounded-xl"
-          />
-          <div className="max-h-48 overflow-y-auto space-y-1.5">
-            {results.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-2">
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Пошук за @username або імʼям" className="h-11 rounded-xl" />
+          <div className="max-h-60 overflow-y-auto space-y-1.5">
+            {searching && <div className="mx-auto my-4 size-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />}
+            {!searching && results.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-4">
                 {query ? "Нікого не знайдено" : "Введіть username для пошуку"}
               </p>
             )}
             {results.map((u) => (
-              <button
-                key={u.id}
-                onClick={() => addRegistered(u)}
-                className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-accent transition text-left"
-              >
+              <button key={u.id} onClick={() => addRegistered(u)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-accent transition text-left">
                 <div className="size-9 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">
                   {u.displayName.slice(0, 1).toUpperCase()}
                 </div>
@@ -70,13 +69,7 @@ export function AddMemberDialog({ trigger, groupId }: { trigger: React.ReactNode
               </button>
             ))}
           </div>
-          <div className="border-t border-border pt-3">
-            <p className="text-xs text-muted-foreground mb-2">Або додати без акаунту</p>
-            <div className="flex gap-2">
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Імʼя" className="h-11 rounded-xl" />
-              <Button onClick={submitFree} className="h-11 rounded-xl">Додати</Button>
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground">У production-режимі учасники додаються лише як зареєстровані користувачі.</p>
         </div>
       </DialogContent>
     </Dialog>

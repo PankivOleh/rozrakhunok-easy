@@ -9,7 +9,7 @@ import { Copy } from "lucide-react";
 export function QrInviteDialog({ trigger, groupId, groupName }: { trigger: React.ReactNode; groupId: string; groupName: string }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  const url = typeof window !== "undefined" ? `${window.location.origin}/groups/${groupId}` : `/groups/${groupId}`;
+  const url = typeof window !== "undefined" ? `${window.location.origin}/invite/${groupId}` : `/invite/${groupId}`;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

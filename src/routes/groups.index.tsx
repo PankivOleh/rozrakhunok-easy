@@ -14,7 +14,7 @@ export const Route = createFileRoute("/groups/")({
 });
 
 function GroupsList() {
-  const { groups, expenses, currentUserId } = useApp();
+  const { groups, expenses, settlements, currentUserId } = useApp();
   return (
     <MobileShell>
       <header className="px-5 pt-6 pb-4">
@@ -23,7 +23,7 @@ function GroupsList() {
       </header>
       <section className="px-5 space-y-3">
         {groups.map((g) => {
-          const bal = calcMemberBalances(g, expenses)[currentUserId] ?? 0;
+          const bal = calcMemberBalances(g, expenses, settlements)[currentUserId] ?? 0;
           return (
             <Link
               key={g.id}

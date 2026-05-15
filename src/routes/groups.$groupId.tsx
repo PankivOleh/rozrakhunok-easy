@@ -8,7 +8,6 @@ import { FavoriteToggle } from "@/components/FavoriteToggle";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
 import { calcMemberBalances, formatUAH, optimizeSettlements, type Settlement } from "@/lib/split";
-import { localNotifService } from "@/services/localNotifService";
 import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -29,7 +28,7 @@ export const Route = createFileRoute("/groups/$groupId")({
 function GroupPage() {
   const { groupId } = Route.useParams();
   const navigate = useNavigate();
-  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, currentUserId } = useApp();
+  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, sendDebtReminder, currentUserId, loading } = useApp();
   const { user } = useAuth();
   const group = getGroup(groupId);
 
@@ -51,10 +50,20 @@ function GroupPage() {
     [group, expenses],
   );
 
+  if (loading) {
+    return (
+      <MobileShell>
+        <div className="flex items-center justify-center py-24">
+          <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+        </div>
+      </MobileShell>
+    );
+  }
+
   if (!group) {
     return (
       <MobileShell>
-        <div className="p-8 text-center text-muted-foreground">Групу не знайдено</div>
+        <div className="p-8 text-center text-muted-foreground">Групу не знайдено або у вас немає доступу</div>
       </MobileShell>
     );
   }
@@ -62,58 +71,47 @@ function GroupPage() {
   const memberName = (id: string) => group.members.find((m) => m.id === id)?.name ?? "—";
   const initials = (name: string) => name.slice(0, 1).toUpperCase();
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     const amt = parseFloat(amount);
     if (!amt || amt <= 0) { toast.error("Вкажіть коректну суму"); return; }
     if (!desc.trim()) { toast.error("Додайте опис"); return; }
     setBusy(true);
     try {
-      addExpense({ groupId: group.id, amount: amt, description: desc.trim(), payerId, splitType, recurring });
-      // Notify other members
-      group.members.filter((m) => m.id !== payerId && m.id !== currentUserId).forEach((m) => {
-        localNotifService.add({
-          toUserId: m.id,
-          fromUserId: user?.id ?? currentUserId,
-          groupId: group.id,
-          type: "expense",
-          message: `Нова витрата у "${group.name}": ${desc.trim()}`,
-          amount: amt,
-        });
-      });
-      setAmount(""); setDesc(""); setRecurring(false);
+      await addExpense({ groupId: group.id, amount: amt, description: desc.trim(), payerId, splitType, recurring });
+      setAmount("");
+      setDesc("");
+      setRecurring(false);
       toast.success("Витрату додано");
+    } catch (err) {
+      toast.error((err as Error).message);
     } finally {
       setBusy(false);
     }
   };
 
-  const handleSettle = (s: Settlement) => {
-    settleDebt(group.id, s.fromId, s.toId, s.amount);
-    if (s.fromId !== currentUserId) {
-      localNotifService.add({
-        toUserId: s.fromId, fromUserId: user?.id ?? currentUserId, groupId: group.id, type: "settle",
-        message: `Борг у "${group.name}" перед ${memberName(s.toId)} погашено`, amount: s.amount,
-      });
+  const handleSettle = async (s: Settlement) => {
+    try {
+      await settleDebt(group.id, s.fromId, s.toId, s.amount);
+      toast.success(`Борг ${formatUAH(s.amount)} погашено`);
+    } catch (err) {
+      toast.error((err as Error).message);
     }
-    if (s.toId !== currentUserId) {
-      localNotifService.add({
-        toUserId: s.toId, fromUserId: user?.id ?? currentUserId, groupId: group.id, type: "settle",
-        message: `${memberName(s.fromId)} погасив(ла) борг у "${group.name}"`, amount: s.amount,
-      });
-    }
-    toast.success(`Борг ${formatUAH(s.amount)} погашено`);
   };
 
-  const handleRemind = (s: Settlement) => {
-    localNotifService.add({
-      toUserId: s.fromId,
-      fromUserId: user?.id ?? currentUserId,
-      groupId: group.id,
-      type: "remind",
-      message: `Нагадування: борг ${formatUAH(s.amount)} перед ${memberName(s.toId)} у "${group.name}"`,
-      amount: s.amount,
-    });
-    toast.success(`Нагадано ${memberName(s.fromId)}`);
+  const handleRemind = async (s: Settlement) => {
+    if (!user) return;
+    try {
+      await sendDebtReminder(
+        group.id,
+        s.fromId,
+        s.toId,
+        s.amount,
+        `Нагадування: борг ${formatUAH(s.amount)} перед ${memberName(s.toId)} у "${group.name}"`,
+      );
+      toast.success(`Нагадано ${memberName(s.fromId)}`);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
   };
 
   return (
@@ -327,7 +325,7 @@ function SettlementsList({
         const iAmCreditor = s.toId === currentUserId;
         const iAmDebtor = s.fromId === currentUserId;
         return (
-          <div key={i} className="rounded-2xl bg-card border border-border p-3">
+          <div key={`${s.fromId}-${s.toId}-${i}`} className="rounded-2xl bg-card border border-border p-3">
             <div className="flex items-center gap-3">
               <div className="size-9 rounded-full bg-destructive/15 text-destructive flex items-center justify-center text-xs font-semibold shrink-0">
                 {memberName(s.fromId).slice(0, 1).toUpperCase()}
@@ -363,7 +361,7 @@ function SettlementsList({
                     debtorName={memberName(s.fromId)}
                     amount={s.amount}
                     trigger={
-                      <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs">
+                      <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs" aria-label="Налаштувати регулярні нагадування">
                         <CalendarClock className="size-3.5" />
                       </Button>
                     }

@@ -1,16 +1,29 @@
-/**
- * Firestore data models for "Pay & Split".
- * All timestamps are stored as ISO strings on the client and converted
- * to Firestore Timestamps in service layer when needed.
- */
+/** Firestore data models for Pay & Split. */
 
 export interface User {
   id: string;
-  email: string;
+  email?: string;
+  username: string;
+  usernameLower: string;
   displayName: string;
+  displayNameLower: string;
   photoURL?: string;
   createdAt: string;
+  updatedAt?: string;
+  contacts: string[];
+  favoriteGroups: string[];
+  monthlyBudget?: number;
   fcmToken?: string;
+}
+
+export interface PublicUser {
+  id: string;
+  username: string;
+  usernameLower: string;
+  displayName: string;
+  displayNameLower: string;
+  photoURL?: string;
+  createdAt: string;
 }
 
 export type SplitType = "equal" | "unequal" | "shares";
@@ -20,9 +33,10 @@ export interface Group {
   name: string;
   emoji?: string;
   creatorId: string;
-  members: string[]; // user ids
-  qrCode?: string; // join URL or QR payload
+  members: string[];
+  qrCode?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Expense {
@@ -32,21 +46,50 @@ export interface Expense {
   amount: number;
   description: string;
   splitType: SplitType;
-  participants: string[]; // user ids that participate in the split
-  shares?: Record<string, number>; // for unequal/shares
+  participants: string[];
+  shares?: Record<string, number>;
   recurring?: boolean;
   timestamp: string;
+  createdBy: string;
 }
 
 export interface Transaction {
-  from: string; // user id (debtor)
-  to: string; // user id (creditor)
+  id: string;
+  groupId: string;
+  fromId: string;
+  toId: string;
   amount: number;
   isSettled: boolean;
   timestamp: string;
+  createdBy: string;
+}
+
+export interface DebtReminder {
+  id: string;
+  groupId: string;
+  creditorId: string;
+  debtorId: string;
+  amount: number;
+  reminderFrequency: "daily" | "weekly" | "monthly";
+  lastRemindedAt: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface InAppNotification {
+  id: string;
+  toUserId: string;
+  fromUserId: string;
+  groupId?: string;
+  debtId?: string;
+  type: "remind" | "settle" | "expense";
+  message: string;
+  amount?: number;
+  read: boolean;
+  createdAt: string;
 }
 
 export interface MemberBalance {
   userId: string;
-  balance: number; // positive = is owed, negative = owes
+  balance: number;
 }

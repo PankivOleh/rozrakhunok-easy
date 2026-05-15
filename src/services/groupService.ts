@@ -3,16 +3,17 @@ import {
   arrayUnion,
   collection,
   doc,
-  getDoc,
-  getDocs,
   onSnapshot,
   query,
   serverTimestamp,
   updateDoc,
   where,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { getFirebase } from "@/lib/firebase";
-import type { Group, User } from "@/types/database";
+import type { Group as DbGroup } from "@/types/database";
+import type { Group as UiGroup, Member } from "@/lib/split";
+import { authService } from "./authService";
 
 function ensureDb() {
   const { db } = getFirebase();
@@ -20,8 +21,29 @@ function ensureDb() {
   return db;
 }
 
+function toIso(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return value.toDate().toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function normalizeGroup(id: string, data: Record<string, unknown>): DbGroup {
+  return {
+    id,
+    name: String(data.name ?? "Група"),
+    emoji: String(data.emoji ?? "👥"),
+    creatorId: String(data.creatorId ?? ""),
+    members: Array.isArray(data.members) ? (data.members as string[]) : [],
+    qrCode: data.qrCode as string | undefined,
+    createdAt: toIso(data.createdAt),
+    updatedAt: data.updatedAt ? toIso(data.updatedAt) : undefined,
+  };
+}
+
 export const groupService = {
-  async createGroup(input: { name: string; emoji?: string; creatorId: string }): Promise<Group> {
+  async createGroup(input: { name: string; emoji?: string; creatorId: string }): Promise<string> {
     const db = ensureDb();
     const ref = await addDoc(collection(db, "groups"), {
       name: input.name,
@@ -29,59 +51,60 @@ export const groupService = {
       creatorId: input.creatorId,
       members: [input.creatorId],
       createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     });
-    const joinUrl = `${window.location.origin}/groups/${ref.id}/join`;
-    await updateDoc(ref, { qrCode: joinUrl });
-    return {
-      id: ref.id,
-      name: input.name,
-      emoji: input.emoji,
-      creatorId: input.creatorId,
-      members: [input.creatorId],
-      qrCode: joinUrl,
-      createdAt: new Date().toISOString(),
-    };
+    await updateDoc(ref, { qrCode: this.generateJoinLink(ref.id), updatedAt: serverTimestamp() });
+    return ref.id;
   },
 
   generateJoinLink(groupId: string) {
-    return `${window.location.origin}/groups/${groupId}/join`;
+    return typeof window === "undefined" ? `/invite/${groupId}` : `${window.location.origin}/invite/${groupId}`;
   },
 
   async joinGroup(groupId: string, userId: string) {
     const db = ensureDb();
-    await updateDoc(doc(db, "groups", groupId), { members: arrayUnion(userId) });
+    await updateDoc(doc(db, "groups", groupId), { members: arrayUnion(userId), updatedAt: serverTimestamp() });
   },
 
-  async getGroup(groupId: string): Promise<Group | null> {
+  async addMember(groupId: string, userId: string) {
     const db = ensureDb();
-    const snap = await getDoc(doc(db, "groups", groupId));
-    return snap.exists() ? ({ id: snap.id, ...snap.data() } as Group) : null;
+    await updateDoc(doc(db, "groups", groupId), { members: arrayUnion(userId), updatedAt: serverTimestamp() });
   },
 
-  async getMembers(groupId: string): Promise<User[]> {
-    const db = ensureDb();
-    const group = await this.getGroup(groupId);
-    if (!group?.members?.length) return [];
-    const out: User[] = [];
-    for (const uid of group.members) {
-      const s = await getDoc(doc(db, "users", uid));
-      if (s.exists()) out.push({ id: s.id, ...s.data() } as User);
-    }
-    return out;
-  },
-
-  listenUserGroups(userId: string, cb: (groups: Group[]) => void) {
+  listenUserGroups(userId: string, cb: (groups: DbGroup[]) => void, onError?: (error: Error) => void): Unsubscribe {
     const db = ensureDb();
     const q = query(collection(db, "groups"), where("members", "array-contains", userId));
-    return onSnapshot(q, (snap) => {
-      cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Group));
+    return onSnapshot(
+      q,
+      (snap) => cb(snap.docs.map((d) => normalizeGroup(d.id, d.data()))),
+      (error) => onError?.(error),
+    );
+  },
+
+  listenGroupDetails(groupId: string, cb: (group: DbGroup | null) => void, onError?: (error: Error) => void): Unsubscribe {
+    const db = ensureDb();
+    return onSnapshot(
+      doc(db, "groups", groupId),
+      (snap) => cb(snap.exists() ? normalizeGroup(snap.id, snap.data()) : null),
+      (error) => onError?.(error),
+    );
+  },
+
+  async hydrateGroups(groups: DbGroup[]): Promise<UiGroup[]> {
+    const ids = groups.flatMap((g) => g.members);
+    const profiles = await authService.getPublicUsersByIds(ids);
+    return groups.map((g) => {
+      const members: Member[] = g.members.map((id) => ({
+        id,
+        name: profiles[id]?.displayName ?? "Користувач",
+        avatar: profiles[id]?.photoURL,
+      }));
+      return {
+        id: g.id,
+        name: g.name,
+        emoji: g.emoji ?? "👥",
+        members,
+      };
     });
-  },
-
-  async listUserGroups(userId: string): Promise<Group[]> {
-    const db = ensureDb();
-    const q = query(collection(db, "groups"), where("members", "array-contains", userId));
-    const snap = await getDocs(q);
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Group);
   },
 };
