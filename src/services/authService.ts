@@ -136,6 +136,13 @@ export const authService = {
         tx.set(publicRef, publicProfile);
       });
 
+      // Send verification email (non-blocking)
+      try {
+        await sendEmailVerification(cred.user, { url: typeof window !== "undefined" ? window.location.origin : undefined });
+      } catch (e) {
+        console.warn("sendEmailVerification failed", e);
+      }
+
       return normalizeUserDoc(cred.user.uid, cred.user, privateProfile);
     } catch (error) {
       await deleteUser(cred.user).catch(() => undefined);
@@ -147,6 +154,24 @@ export const authService = {
     const { auth } = ensureFirebase();
     const cred = await signInWithEmailAndPassword(auth, email, password);
     return cred.user;
+  },
+
+  async sendPasswordReset(email: string) {
+    const { auth } = ensureFirebase();
+    await sendPasswordResetEmail(auth, email.trim(), {
+      url: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
+    });
+  },
+
+  async resendVerification() {
+    const { auth } = ensureFirebase();
+    if (!auth.currentUser) throw new Error("Потрібно увійти");
+    await sendEmailVerification(auth.currentUser, { url: typeof window !== "undefined" ? window.location.origin : undefined });
+  },
+
+  async reloadCurrent() {
+    const { auth } = ensureFirebase();
+    if (auth.currentUser) await auth.currentUser.reload();
   },
 
   async signOut() {
