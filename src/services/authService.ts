@@ -138,7 +138,7 @@ export const authService = {
 
       // Send verification email (non-blocking)
       try {
-        await sendEmailVerification(cred.user, { url: typeof window !== "undefined" ? window.location.origin : undefined });
+        await sendEmailVerification(cred.user, { url: typeof window !== "undefined" ? window.location.origin : "" });
       } catch (e) {
         console.warn("sendEmailVerification failed", e);
       }
@@ -159,14 +159,14 @@ export const authService = {
   async sendPasswordReset(email: string) {
     const { auth } = ensureFirebase();
     await sendPasswordResetEmail(auth, email.trim(), {
-      url: typeof window !== "undefined" ? `${window.location.origin}/login` : undefined,
+      url: typeof window !== "undefined" ? `${window.location.origin}/login` : "",
     });
   },
 
   async resendVerification() {
     const { auth } = ensureFirebase();
     if (!auth.currentUser) throw new Error("Потрібно увійти");
-    await sendEmailVerification(auth.currentUser, { url: typeof window !== "undefined" ? window.location.origin : undefined });
+    await sendEmailVerification(auth.currentUser, { url: typeof window !== "undefined" ? window.location.origin : "" });
   },
 
   async reloadCurrent() {
