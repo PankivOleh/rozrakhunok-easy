@@ -228,6 +228,7 @@ export const authService = {
     if (patch.contacts !== undefined) allowed.contacts = patch.contacts;
     if (patch.favoriteGroups !== undefined) allowed.favoriteGroups = patch.favoriteGroups;
     if (patch.monthlyBudget !== undefined) allowed.monthlyBudget = patch.monthlyBudget;
+    if (patch.budgetResetAt !== undefined) allowed.budgetResetAt = patch.budgetResetAt;
     allowed.updatedAt = serverTimestamp();
     await updateDoc(doc(db, "users", uid), allowed);
     if (patch.displayName !== undefined || patch.photoURL !== undefined) {
