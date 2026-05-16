@@ -57,6 +57,7 @@ function normalizeUserDoc(uid: string, fbUser: FbUser, data: Record<string, unkn
   return {
     id: uid,
     email: fbUser.email ?? undefined,
+    emailVerified: fbUser.emailVerified,
     username,
     usernameLower: String(data?.usernameLower ?? username),
     displayName,
@@ -67,6 +68,7 @@ function normalizeUserDoc(uid: string, fbUser: FbUser, data: Record<string, unkn
     contacts: Array.isArray(data?.contacts) ? (data.contacts as string[]) : [],
     favoriteGroups: Array.isArray(data?.favoriteGroups) ? (data.favoriteGroups as string[]) : [],
     monthlyBudget: typeof data?.monthlyBudget === "number" ? data.monthlyBudget : undefined,
+    budgetResetAt: typeof data?.budgetResetAt === "string" ? data.budgetResetAt : (data?.budgetResetAt ? toIso(data.budgetResetAt) : undefined),
     fcmToken: data?.fcmToken as string | undefined,
   };
 }
