@@ -15,6 +15,9 @@ type Ctx = {
   toggleFavorite: (groupId: string) => Promise<void>;
   addContact: (userId: string) => Promise<void>;
   removeContact: (userId: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  resendVerification: () => Promise<void>;
+  refreshAuth: () => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
