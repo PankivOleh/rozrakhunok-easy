@@ -77,6 +77,21 @@ function Dashboard() {
         <HeaderActions />
       </header>
 
+      {showVerifyBanner && (
+        <section className="px-5 mb-3">
+          <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-3 flex items-start gap-3">
+            <MailWarning className="size-5 text-yellow-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">Будь ласка, підтвердіть вашу електронну пошту</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={resend} disabled={resending} className="h-8 rounded-lg text-xs shrink-0">
+              {resending ? "..." : "Надіслати"}
+            </Button>
+          </div>
+        </section>
+      )}
+
       <section className="px-5">
         <div className="rounded-3xl gradient-card p-5 shadow-glow text-primary-foreground relative overflow-hidden">
           <div className="absolute -right-10 -top-10 size-40 rounded-full bg-white/10 blur-2xl" />
