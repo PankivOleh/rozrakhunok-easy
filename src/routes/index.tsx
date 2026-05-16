@@ -26,8 +26,9 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   const { groups, expenses, settlements, currentUserId, monthlyBudget } = useApp();
-  const { user } = useAuth();
+  const { user, resendVerification } = useAuth();
   const { t } = useI18n();
+  const [resending, setResending] = useState(false);
 
   const { totalOwedToMe, totalIOwe, net } = useMemo(() => {
     let owedToMe = 0;
@@ -42,14 +43,29 @@ function Dashboard() {
   }, [groups, expenses, settlements, currentUserId]);
 
   const monthSpent = useMemo(() => {
-    const m = new Date().toISOString().slice(0, 7);
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const resetIso = user?.budgetResetAt;
     return expenses
-      .filter((e) => e.date.startsWith(m) && e.payerId === currentUserId)
+      .filter((e) => e.date.startsWith(monthKey) && e.payerId === currentUserId)
+      .filter((e) => !resetIso || e.date >= resetIso.slice(0, 10))
       .reduce((s, e) => s + e.amount, 0);
-  }, [expenses, currentUserId]);
+  }, [expenses, currentUserId, user?.budgetResetAt]);
 
   const budgetPct = monthlyBudget ? Math.min(100, Math.round((monthSpent / monthlyBudget) * 100)) : 0;
   const recent = expenses.slice(0, 6);
+
+  const showVerifyBanner = Boolean(user && user.email && user.emailVerified === false);
+  const resend = async () => {
+    setResending(true);
+    try {
+      await resendVerification();
+      toast.success("Лист підтвердження надіслано");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <MobileShell>
