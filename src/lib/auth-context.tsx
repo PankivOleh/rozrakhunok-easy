@@ -15,6 +15,9 @@ type Ctx = {
   toggleFavorite: (groupId: string) => Promise<void>;
   addContact: (userId: string) => Promise<void>;
   removeContact: (userId: string) => Promise<void>;
+  sendPasswordReset: (email: string) => Promise<void>;
+  resendVerification: () => Promise<void>;
+  refreshAuth: () => Promise<void>;
 };
 
 const AuthCtx = createContext<Ctx | null>(null);
@@ -71,6 +74,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       removeContact: async (userId) => {
         if (!user) return;
         await authService.updateUser(user.id, { contacts: user.contacts.filter((id) => id !== userId) });
+      },
+      sendPasswordReset: async (email) => { await authService.sendPasswordReset(email); },
+      resendVerification: async () => { await authService.resendVerification(); },
+      refreshAuth: async () => {
+        await authService.reloadCurrent();
+        // Trigger re-derivation by calling auth state subscribers — easiest: rely on profile snapshot
       },
     }),
     [user, loading, error],

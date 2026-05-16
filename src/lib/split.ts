@@ -36,7 +36,8 @@ export type ScheduledReminder = {
   creditorId: string;
   debtorId: string;
   amount?: number;
-  frequency: ReminderFrequency;
+  intervalDays: number;
+  frequency?: ReminderFrequency;
   lastRemindedAt: string | null;
   createdAt: string;
 };

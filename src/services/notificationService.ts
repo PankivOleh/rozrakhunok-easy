@@ -46,11 +46,11 @@ function normalizeNotification(id: string, data: Record<string, unknown>): InApp
 export const notificationService = {
   async create(input: Omit<InAppNotification, "id" | "createdAt" | "read">): Promise<string> {
     const db = ensureDb();
-    const ref = await addDoc(collection(db, "notifications"), {
-      ...input,
-      read: false,
-      createdAt: serverTimestamp(),
-    });
+    const clean: Record<string, unknown> = { read: false, createdAt: serverTimestamp() };
+    for (const [k, v] of Object.entries(input)) {
+      if (v !== undefined && v !== null) clean[k] = v;
+    }
+    const ref = await addDoc(collection(db, "notifications"), clean);
     return ref.id;
   },
 

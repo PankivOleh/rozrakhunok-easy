@@ -1,16 +1,18 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, TrendingDown, TrendingUp } from "lucide-react";
+import { MailWarning, Plus, TrendingDown, TrendingUp } from "lucide-react";
 import { MobileShell } from "@/components/MobileShell";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { AddGroupDialog } from "@/components/AddGroupDialog";
 import { FavoriteToggle } from "@/components/FavoriteToggle";
+import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
 import { calcMemberBalances, formatUAH } from "@/lib/split";
 import { Progress } from "@/components/ui/progress";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -24,8 +26,9 @@ export const Route = createFileRoute("/")({
 
 function Dashboard() {
   const { groups, expenses, settlements, currentUserId, monthlyBudget } = useApp();
-  const { user } = useAuth();
+  const { user, resendVerification } = useAuth();
   const { t } = useI18n();
+  const [resending, setResending] = useState(false);
 
   const { totalOwedToMe, totalIOwe, net } = useMemo(() => {
     let owedToMe = 0;
@@ -40,14 +43,29 @@ function Dashboard() {
   }, [groups, expenses, settlements, currentUserId]);
 
   const monthSpent = useMemo(() => {
-    const m = new Date().toISOString().slice(0, 7);
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const resetIso = user?.budgetResetAt;
     return expenses
-      .filter((e) => e.date.startsWith(m) && e.payerId === currentUserId)
+      .filter((e) => e.date.startsWith(monthKey) && e.payerId === currentUserId)
+      .filter((e) => !resetIso || e.date >= resetIso.slice(0, 10))
       .reduce((s, e) => s + e.amount, 0);
-  }, [expenses, currentUserId]);
+  }, [expenses, currentUserId, user?.budgetResetAt]);
 
   const budgetPct = monthlyBudget ? Math.min(100, Math.round((monthSpent / monthlyBudget) * 100)) : 0;
   const recent = expenses.slice(0, 6);
+
+  const showVerifyBanner = Boolean(user && user.email && user.emailVerified === false);
+  const resend = async () => {
+    setResending(true);
+    try {
+      await resendVerification();
+      toast.success("Лист підтвердження надіслано");
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setResending(false);
+    }
+  };
 
   return (
     <MobileShell>
@@ -58,6 +76,21 @@ function Dashboard() {
         </div>
         <HeaderActions />
       </header>
+
+      {showVerifyBanner && (
+        <section className="px-5 mb-3">
+          <div className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-3 flex items-start gap-3">
+            <MailWarning className="size-5 text-yellow-500 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">Будь ласка, підтвердіть вашу електронну пошту</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+            </div>
+            <Button size="sm" variant="outline" onClick={resend} disabled={resending} className="h-8 rounded-lg text-xs shrink-0">
+              {resending ? "..." : "Надіслати"}
+            </Button>
+          </div>
+        </section>
+      )}
 
       <section className="px-5">
         <div className="rounded-3xl gradient-card p-5 shadow-glow text-primary-foreground relative overflow-hidden">

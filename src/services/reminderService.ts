@@ -21,36 +21,51 @@ function ensureDb() {
 function toIso(value: unknown): string {
   if (typeof value === "string") return value;
   if (value && typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
-    return value.toDate().toISOString();
+    return (value as { toDate: () => Date }).toDate().toISOString();
   }
   return new Date().toISOString();
 }
 
 function normalizeReminder(id: string, data: Record<string, unknown>): ScheduledReminder {
+  const intervalDays = typeof data.intervalDays === "number"
+    ? data.intervalDays
+    : data.reminderFrequency === "daily" ? 1
+    : data.reminderFrequency === "monthly" ? 30
+    : 7;
   return {
     id,
     groupId: String(data.groupId ?? ""),
     creditorId: String(data.creditorId ?? ""),
     debtorId: String(data.debtorId ?? ""),
     amount: typeof data.amount === "number" ? data.amount : undefined,
-    frequency: data.reminderFrequency === "daily" || data.reminderFrequency === "monthly" ? data.reminderFrequency : "weekly",
+    intervalDays,
+    frequency: intervalDays === 1 ? "daily" : intervalDays >= 30 ? "monthly" : "weekly",
     lastRemindedAt: data.lastRemindedAt ? toIso(data.lastRemindedAt) : null,
     createdAt: toIso(data.createdAt),
   };
 }
 
 export const reminderService = {
-  async upsertReminder(input: Omit<ScheduledReminder, "id" | "createdAt" | "lastRemindedAt"> & { amount?: number }): Promise<string> {
+  async upsertReminder(input: {
+    groupId: string;
+    creditorId: string;
+    debtorId: string;
+    intervalDays: number;
+    amount?: number;
+    debtId?: string;
+  }): Promise<string> {
     const db = ensureDb();
-    const ref = await addDoc(collection(db, "groups", input.groupId, "debtReminders"), {
+    const payload: Record<string, unknown> = {
       creditorId: input.creditorId,
       debtorId: input.debtorId,
       amount: input.amount ?? 0,
-      reminderFrequency: input.frequency,
+      intervalDays: input.intervalDays,
       lastRemindedAt: null,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    });
+    };
+    if (input.debtId) payload.debtId = input.debtId;
+    const ref = await addDoc(collection(db, "groups", input.groupId, "debtReminders"), payload);
     return ref.id;
   },
 

@@ -2,6 +2,8 @@ import {
   createUserWithEmailAndPassword,
   deleteUser,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -55,6 +57,7 @@ function normalizeUserDoc(uid: string, fbUser: FbUser, data: Record<string, unkn
   return {
     id: uid,
     email: fbUser.email ?? undefined,
+    emailVerified: fbUser.emailVerified,
     username,
     usernameLower: String(data?.usernameLower ?? username),
     displayName,
@@ -65,6 +68,7 @@ function normalizeUserDoc(uid: string, fbUser: FbUser, data: Record<string, unkn
     contacts: Array.isArray(data?.contacts) ? (data.contacts as string[]) : [],
     favoriteGroups: Array.isArray(data?.favoriteGroups) ? (data.favoriteGroups as string[]) : [],
     monthlyBudget: typeof data?.monthlyBudget === "number" ? data.monthlyBudget : undefined,
+    budgetResetAt: typeof data?.budgetResetAt === "string" ? data.budgetResetAt : (data?.budgetResetAt ? toIso(data.budgetResetAt) : undefined),
     fcmToken: data?.fcmToken as string | undefined,
   };
 }
@@ -132,6 +136,13 @@ export const authService = {
         tx.set(publicRef, publicProfile);
       });
 
+      // Send verification email (non-blocking)
+      try {
+        await sendEmailVerification(cred.user, { url: typeof window !== "undefined" ? window.location.origin : "" });
+      } catch (e) {
+        console.warn("sendEmailVerification failed", e);
+      }
+
       return normalizeUserDoc(cred.user.uid, cred.user, privateProfile);
     } catch (error) {
       await deleteUser(cred.user).catch(() => undefined);
@@ -143,6 +154,24 @@ export const authService = {
     const { auth } = ensureFirebase();
     const cred = await signInWithEmailAndPassword(auth, email, password);
     return cred.user;
+  },
+
+  async sendPasswordReset(email: string) {
+    const { auth } = ensureFirebase();
+    await sendPasswordResetEmail(auth, email.trim(), {
+      url: typeof window !== "undefined" ? `${window.location.origin}/login` : "",
+    });
+  },
+
+  async resendVerification() {
+    const { auth } = ensureFirebase();
+    if (!auth.currentUser) throw new Error("Потрібно увійти");
+    await sendEmailVerification(auth.currentUser, { url: typeof window !== "undefined" ? window.location.origin : "" });
+  },
+
+  async reloadCurrent() {
+    const { auth } = ensureFirebase();
+    if (auth.currentUser) await auth.currentUser.reload();
   },
 
   async signOut() {
@@ -199,6 +228,7 @@ export const authService = {
     if (patch.contacts !== undefined) allowed.contacts = patch.contacts;
     if (patch.favoriteGroups !== undefined) allowed.favoriteGroups = patch.favoriteGroups;
     if (patch.monthlyBudget !== undefined) allowed.monthlyBudget = patch.monthlyBudget;
+    if (patch.budgetResetAt !== undefined) allowed.budgetResetAt = patch.budgetResetAt;
     allowed.updatedAt = serverTimestamp();
     await updateDoc(doc(db, "users", uid), allowed);
     if (patch.displayName !== undefined || patch.photoURL !== undefined) {

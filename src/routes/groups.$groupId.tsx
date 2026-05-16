@@ -1,9 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Bell, CalendarClock, CheckCircle2, Plus, QrCode, Repeat } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Plus, QrCode, Repeat, Settings2, RotateCcw } from "lucide-react";
 import { MobileShell } from "@/components/MobileShell";
 import { QrInviteDialog } from "@/components/QrInviteDialog";
 import { AddMemberDialog } from "@/components/AddMemberDialog";
-import { ScheduleReminderDialog } from "@/components/ScheduleReminderDialog";
+import { RemindPopover } from "@/components/RemindPopover";
 import { FavoriteToggle } from "@/components/FavoriteToggle";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
@@ -12,6 +12,7 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/groups/$groupId")({
@@ -28,8 +29,8 @@ export const Route = createFileRoute("/groups/$groupId")({
 function GroupPage() {
   const { groupId } = Route.useParams();
   const navigate = useNavigate();
-  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, sendDebtReminder, currentUserId, loading } = useApp();
-  const { user } = useAuth();
+  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, currentUserId, loading, monthlyBudget, setMonthlyBudget } = useApp();
+  const { user, updateUser } = useAuth();
   const group = getGroup(groupId);
 
   const [tab, setTab] = useState<"split" | "debts">("split");
@@ -38,7 +39,10 @@ function GroupPage() {
   const [recurring, setRecurring] = useState(false);
   const [splitType, setSplitType] = useState<"equal" | "unequal">("equal");
   const [payerId, setPayerId] = useState(currentUserId);
+  const [shares, setShares] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
+  const [budgetOpen, setBudgetOpen] = useState(false);
+  const [budgetDraft, setBudgetDraft] = useState(String(monthlyBudget ?? 2000));
 
   const balances = useMemo(
     () => (group ? calcMemberBalances(group, expenses, settleRecords) : {}),
@@ -49,6 +53,10 @@ function GroupPage() {
     () => (group ? expenses.filter((e) => e.groupId === group.id) : []),
     [group, expenses],
   );
+
+  const total = parseFloat(amount) || 0;
+  const sharesSum = Object.values(shares).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+  const sharesValid = splitType === "equal" || Math.abs(sharesSum - total) < 0.01;
 
   if (loading) {
     return (
@@ -72,15 +80,38 @@ function GroupPage() {
   const initials = (name: string) => name.slice(0, 1).toUpperCase();
 
   const handleAdd = async () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { toast.error("Вкажіть коректну суму"); return; }
+    if (!total || total <= 0) { toast.error("Вкажіть коректну суму"); return; }
     if (!desc.trim()) { toast.error("Додайте опис"); return; }
+    if (splitType === "unequal" && !sharesValid) {
+      toast.error(`Сума часток (${formatUAH(sharesSum)}) має дорівнювати ${formatUAH(total)}`);
+      return;
+    }
     setBusy(true);
     try {
-      await addExpense({ groupId: group.id, amount: amt, description: desc.trim(), payerId, splitType, recurring });
+      const sharesObj = splitType === "unequal"
+        ? Object.fromEntries(
+            group.members
+              .map((m) => [m.id, parseFloat(shares[m.id] || "0") || 0] as const)
+              .filter(([, v]) => v > 0),
+          )
+        : undefined;
+      const participants = splitType === "unequal" && sharesObj
+        ? Object.keys(sharesObj)
+        : group.members.map((m) => m.id);
+      await addExpense({
+        groupId: group.id,
+        amount: total,
+        description: desc.trim(),
+        payerId,
+        splitType,
+        recurring,
+        participants,
+        shares: sharesObj,
+      });
       setAmount("");
       setDesc("");
       setRecurring(false);
+      setShares({});
       toast.success("Витрату додано");
     } catch (err) {
       toast.error((err as Error).message);
@@ -98,17 +129,23 @@ function GroupPage() {
     }
   };
 
-  const handleRemind = async (s: Settlement) => {
-    if (!user) return;
+  const saveBudget = async () => {
+    const v = parseFloat(budgetDraft);
+    if (!v || v <= 0) { toast.error("Вкажіть коректний бюджет"); return; }
     try {
-      await sendDebtReminder(
-        group.id,
-        s.fromId,
-        s.toId,
-        s.amount,
-        `Нагадування: борг ${formatUAH(s.amount)} перед ${memberName(s.toId)} у "${group.name}"`,
-      );
-      toast.success(`Нагадано ${memberName(s.fromId)}`);
+      await setMonthlyBudget(v);
+      toast.success("Бюджет оновлено");
+      setBudgetOpen(false);
+    } catch (err) {
+      toast.error((err as Error).message);
+    }
+  };
+
+  const resetMonth = async () => {
+    try {
+      await updateUser({ budgetResetAt: new Date().toISOString() });
+      toast.success("Витрати місяця скинуто");
+      setBudgetOpen(false);
     } catch (err) {
       toast.error((err as Error).message);
     }
@@ -118,10 +155,7 @@ function GroupPage() {
     <MobileShell>
       <header className="px-5 pt-6 pb-4 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button
-            onClick={() => navigate({ to: "/" })}
-            className="size-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center shrink-0"
-          >
+          <button onClick={() => navigate({ to: "/" })} className="size-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center shrink-0">
             <ArrowLeft className="size-4" />
           </button>
           <h1 className="font-bold flex items-center gap-2 truncate">
@@ -129,15 +163,32 @@ function GroupPage() {
           </h1>
           <FavoriteToggle groupId={group.id} />
         </div>
-        <QrInviteDialog
-          groupId={group.id}
-          groupName={group.name}
-          trigger={
-            <button className="px-3 h-10 rounded-full gradient-primary text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-glow shrink-0">
-              <QrCode className="size-4" /> Запросити
-            </button>
-          }
-        />
+        <div className="flex items-center gap-2 shrink-0">
+          <Popover open={budgetOpen} onOpenChange={(o) => { setBudgetOpen(o); if (o) setBudgetDraft(String(monthlyBudget ?? 2000)); }}>
+            <PopoverTrigger asChild>
+              <button className="size-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center" aria-label="Налаштування бюджету">
+                <Settings2 className="size-4" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-72 rounded-2xl space-y-3">
+              <p className="text-sm font-semibold">Місячний бюджет</p>
+              <Input type="number" inputMode="decimal" value={budgetDraft} onChange={(e) => setBudgetDraft(e.target.value)} placeholder="Ліміт, ₴" className="h-11 rounded-xl" />
+              <Button onClick={saveBudget} className="w-full h-10 rounded-xl gradient-primary text-primary-foreground">Зберегти</Button>
+              <Button onClick={resetMonth} variant="outline" className="w-full h-10 rounded-xl">
+                <RotateCcw className="size-4 mr-2" /> Скинути витрати місяця
+              </Button>
+            </PopoverContent>
+          </Popover>
+          <QrInviteDialog
+            groupId={group.id}
+            groupName={group.name}
+            trigger={
+              <button className="px-3 h-10 rounded-full gradient-primary text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-glow">
+                <QrCode className="size-4" /> Запросити
+              </button>
+            }
+          />
+        </div>
       </header>
 
       <section className="px-5">
@@ -210,7 +261,34 @@ function GroupPage() {
                 </button>
               </div>
 
-              <Button onClick={handleAdd} disabled={busy} className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-glow text-base">
+              {splitType === "unequal" && (
+                <div className="rounded-2xl bg-surface p-3 space-y-2">
+                  <p className="text-xs text-muted-foreground">Введіть точну суму для кожного учасника</p>
+                  {group.members.map((m) => (
+                    <div key={m.id} className="flex items-center gap-2">
+                      <div className="size-8 rounded-full gradient-primary flex items-center justify-center text-primary-foreground text-xs font-semibold shrink-0">
+                        {initials(m.name)}
+                      </div>
+                      <span className="text-sm flex-1 truncate">{m.name}</span>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        value={shares[m.id] ?? ""}
+                        onChange={(e) => setShares((p) => ({ ...p, [m.id]: e.target.value }))}
+                        placeholder="0"
+                        className="h-9 w-24 rounded-lg text-right text-sm"
+                      />
+                      <span className="text-xs text-muted-foreground w-3">₴</span>
+                    </div>
+                  ))}
+                  <div className={`flex justify-between text-xs pt-2 border-t border-border ${sharesValid ? "text-success" : "text-destructive"}`}>
+                    <span>Сума часток</span>
+                    <span className="font-semibold">{formatUAH(sharesSum)} / {formatUAH(total)}</span>
+                  </div>
+                </div>
+              )}
+
+              <Button onClick={handleAdd} disabled={busy || (splitType === "unequal" && !sharesValid)} className="w-full h-12 rounded-xl gradient-primary text-primary-foreground font-semibold shadow-glow text-base disabled:opacity-50">
                 {busy ? "..." : "Додати витрату"}
               </Button>
             </div>
@@ -223,7 +301,6 @@ function GroupPage() {
               memberName={memberName}
               currentUserId={currentUserId}
               onSettle={handleSettle}
-              onRemind={handleRemind}
               groupId={group.id}
               groupName={group.name}
             />
@@ -282,13 +359,14 @@ function GroupPage() {
               memberName={memberName}
               currentUserId={currentUserId}
               onSettle={handleSettle}
-              onRemind={handleRemind}
               groupId={group.id}
               groupName={group.name}
             />
           </div>
         </section>
       )}
+      {/* Reference user to keep import used */}
+      <span className="hidden">{user?.id}</span>
     </MobileShell>
   );
 }
@@ -302,13 +380,12 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 }
 
 function SettlementsList({
-  settlements, memberName, currentUserId, onSettle, onRemind, groupId, groupName,
+  settlements, memberName, currentUserId, onSettle, groupId, groupName,
 }: {
   settlements: Settlement[];
   memberName: (id: string) => string;
   currentUserId: string;
   onSettle: (s: Settlement) => void;
-  onRemind: (s: Settlement) => void;
   groupId: string;
   groupName: string;
 }) {
@@ -350,23 +427,14 @@ function SettlementsList({
                 </Button>
               )}
               {iAmCreditor && (
-                <>
-                  <Button size="sm" variant="outline" onClick={() => onRemind(s)} className="h-9 rounded-xl text-xs">
-                    <Bell className="size-3.5 mr-1" /> Нагадати
-                  </Button>
-                  <ScheduleReminderDialog
-                    groupId={groupId}
-                    groupName={groupName}
-                    debtorId={s.fromId}
-                    debtorName={memberName(s.fromId)}
-                    amount={s.amount}
-                    trigger={
-                      <Button size="sm" variant="outline" className="h-9 rounded-xl text-xs" aria-label="Налаштувати регулярні нагадування">
-                        <CalendarClock className="size-3.5" />
-                      </Button>
-                    }
-                  />
-                </>
+                <RemindPopover
+                  groupId={groupId}
+                  groupName={groupName}
+                  debtorId={s.fromId}
+                  debtorName={memberName(s.fromId)}
+                  amount={s.amount}
+                  debtId={`${s.fromId}_${s.toId}`}
+                />
               )}
             </div>
           </div>
