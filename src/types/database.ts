@@ -3,6 +3,7 @@
 export interface User {
   id: string;
   email?: string;
+  emailVerified?: boolean;
   username: string;
   usernameLower: string;
   displayName: string;
@@ -13,6 +14,7 @@ export interface User {
   contacts: string[];
   favoriteGroups: string[];
   monthlyBudget?: number;
+  budgetResetAt?: string;
   fcmToken?: string;
 }
 
