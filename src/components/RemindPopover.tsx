@@ -50,8 +50,9 @@ export function RemindPopover({
         user.id,
         amount,
         `Нагадування: борг ${formatUAH(amount)} перед ${user.displayName} у "${groupName}"`,
+        { creditorName: user.displayName, groupName, debtId },
       );
-      toast.success(`Нагадування надіслано ${debtorName}`);
+      toast.success(`Нагадування надіслано ${debtorName} (in-app + email)`);
       setOpen(false);
     } catch (err) {
       toast.error((err as Error).message);
