@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, CheckCircle2, Plus, QrCode, Repeat, Settings2, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Plus, QrCode, Repeat } from "lucide-react";
 import { MobileShell } from "@/components/MobileShell";
 import { QrInviteDialog } from "@/components/QrInviteDialog";
 import { AddMemberDialog } from "@/components/AddMemberDialog";
@@ -12,7 +12,6 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/groups/$groupId")({
