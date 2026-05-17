@@ -126,28 +126,6 @@ function GroupPage() {
     }
   };
 
-  const saveBudget = async () => {
-    const v = parseFloat(budgetDraft);
-    if (!v || v <= 0) { toast.error("Вкажіть коректний бюджет"); return; }
-    try {
-      await setMonthlyBudget(v);
-      toast.success("Бюджет оновлено");
-      setBudgetOpen(false);
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  };
-
-  const resetMonth = async () => {
-    try {
-      await updateUser({ budgetResetAt: new Date().toISOString() });
-      toast.success("Витрати місяця скинуто");
-      setBudgetOpen(false);
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  };
-
   return (
     <MobileShell>
       <header className="px-5 pt-6 pb-4 flex items-center justify-between gap-2">
