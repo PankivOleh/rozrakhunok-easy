@@ -46,11 +46,17 @@ function Dashboard() {
   const monthSpent = useMemo(() => {
     const monthKey = new Date().toISOString().slice(0, 7);
     const resetIso = user?.budgetResetAt;
-    return expenses
+    const expSum = expenses
       .filter((e) => e.date.startsWith(monthKey) && e.payerId === currentUserId)
       .filter((e) => !resetIso || e.date >= resetIso.slice(0, 10))
       .reduce((s, e) => s + e.amount, 0);
-  }, [expenses, currentUserId, user?.budgetResetAt]);
+    // Settlements are real cash outflows for the payer (fromId) — count them too.
+    const settleSum = settlements
+      .filter((s) => s.fromId === currentUserId && s.date.startsWith(monthKey))
+      .filter((s) => !resetIso || s.date >= resetIso.slice(0, 10))
+      .reduce((s, x) => s + x.amount, 0);
+    return round2(expSum + settleSum);
+  }, [expenses, settlements, currentUserId, user?.budgetResetAt]);
 
   const budgetPct = monthlyBudget ? Math.min(100, Math.round((monthSpent / monthlyBudget) * 100)) : 0;
   const recent = expenses.slice(0, 6);
