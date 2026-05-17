@@ -118,17 +118,21 @@ function Dashboard() {
       </section>
 
       <section className="px-5 mt-4">
-        <div className="rounded-2xl bg-card p-4 shadow-card border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium">{t("budget.monthly")}</p>
-            <p className="text-xs text-muted-foreground">{budgetPct}%</p>
-          </div>
-          <Progress value={budgetPct} className="h-2" />
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>{formatUAH(monthSpent)}</span>
-            <span>{formatUAH(monthlyBudget)}</span>
-          </div>
-        </div>
+        <BudgetDialog
+          trigger={
+            <button className="w-full text-left rounded-2xl bg-card p-4 shadow-card border border-border hover:border-primary/50 transition">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">{t("budget.monthly")}</p>
+                <p className="text-xs text-muted-foreground">{budgetPct}% · натисніть для зміни</p>
+              </div>
+              <Progress value={budgetPct} className="h-2" />
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>{formatUAH(monthSpent)}</span>
+                <span>{formatUAH(monthlyBudget)}</span>
+              </div>
+            </button>
+          }
+        />
       </section>
 
       <section className="mt-6">
