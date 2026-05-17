@@ -173,8 +173,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await expenseService.settleDebt({ groupId, fromId, toId, amount, createdBy: uid });
   }, [uid]);
 
-  const sendDebtReminder = useCallback<Ctx["sendDebtReminder"]>(async (groupId, debtorId, creditorId, amount, message) => {
-    await notificationService.sendDebtReminder({ groupId, debtorId, creditorId, message, amount });
+  const sendDebtReminder = useCallback<Ctx["sendDebtReminder"]>(async (groupId, debtorId, creditorId, amount, message, opts) => {
+    await notificationService.sendDebtReminder({
+      groupId, debtorId, creditorId, message, amount,
+      debtId: opts?.debtId,
+      creditorName: opts?.creditorName,
+      groupName: opts?.groupName,
+    });
   }, []);
 
   const scheduleReminder = useCallback<Ctx["scheduleReminder"]>(async (reminder) => {
