@@ -139,21 +139,15 @@ function GroupPage() {
           <FavoriteToggle groupId={group.id} />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Popover open={budgetOpen} onOpenChange={(o) => { setBudgetOpen(o); if (o) setBudgetDraft(String(monthlyBudget ?? 2000)); }}>
-            <PopoverTrigger asChild>
-              <button className="size-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center" aria-label="Налаштування бюджету">
-                <Settings2 className="size-4" />
+          <QrInviteDialog
+            groupId={group.id}
+            groupName={group.name}
+            trigger={
+              <button className="px-3 h-10 rounded-full gradient-primary text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-glow">
+                <QrCode className="size-4" /> Запросити
               </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 rounded-2xl space-y-3">
-              <p className="text-sm font-semibold">Місячний бюджет</p>
-              <Input type="number" inputMode="decimal" value={budgetDraft} onChange={(e) => setBudgetDraft(e.target.value)} placeholder="Ліміт, ₴" className="h-11 rounded-xl" />
-              <Button onClick={saveBudget} className="w-full h-10 rounded-xl gradient-primary text-primary-foreground">Зберегти</Button>
-              <Button onClick={resetMonth} variant="outline" className="w-full h-10 rounded-xl">
-                <RotateCcw className="size-4 mr-2" /> Скинути витрати місяця
-              </Button>
-            </PopoverContent>
-          </Popover>
+            }
+          />
           <QrInviteDialog
             groupId={group.id}
             groupName={group.name}
