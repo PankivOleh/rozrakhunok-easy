@@ -28,8 +28,8 @@ export const Route = createFileRoute("/groups/$groupId")({
 function GroupPage() {
   const { groupId } = Route.useParams();
   const navigate = useNavigate();
-  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, currentUserId, loading, monthlyBudget, setMonthlyBudget } = useApp();
-  const { user, updateUser } = useAuth();
+  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, currentUserId, loading } = useApp();
+  const { user } = useAuth();
   const group = getGroup(groupId);
 
   const [tab, setTab] = useState<"split" | "debts">("split");
@@ -40,8 +40,6 @@ function GroupPage() {
   const [payerId, setPayerId] = useState(currentUserId);
   const [shares, setShares] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [budgetOpen, setBudgetOpen] = useState(false);
-  const [budgetDraft, setBudgetDraft] = useState(String(monthlyBudget ?? 2000));
 
   const balances = useMemo(
     () => (group ? calcMemberBalances(group, expenses, settleRecords) : {}),
