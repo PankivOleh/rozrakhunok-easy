@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, CheckCircle2, Plus, QrCode, Repeat, Settings2, RotateCcw } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Plus, QrCode, Repeat } from "lucide-react";
 import { MobileShell } from "@/components/MobileShell";
 import { QrInviteDialog } from "@/components/QrInviteDialog";
 import { AddMemberDialog } from "@/components/AddMemberDialog";
@@ -12,7 +12,6 @@ import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/groups/$groupId")({
@@ -29,8 +28,8 @@ export const Route = createFileRoute("/groups/$groupId")({
 function GroupPage() {
   const { groupId } = Route.useParams();
   const navigate = useNavigate();
-  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, currentUserId, loading, monthlyBudget, setMonthlyBudget } = useApp();
-  const { user, updateUser } = useAuth();
+  const { getGroup, expenses, settlements: settleRecords, addExpense, settleDebt, currentUserId, loading } = useApp();
+  const { user } = useAuth();
   const group = getGroup(groupId);
 
   const [tab, setTab] = useState<"split" | "debts">("split");
@@ -41,8 +40,6 @@ function GroupPage() {
   const [payerId, setPayerId] = useState(currentUserId);
   const [shares, setShares] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const [budgetOpen, setBudgetOpen] = useState(false);
-  const [budgetDraft, setBudgetDraft] = useState(String(monthlyBudget ?? 2000));
 
   const balances = useMemo(
     () => (group ? calcMemberBalances(group, expenses, settleRecords) : {}),
@@ -129,28 +126,6 @@ function GroupPage() {
     }
   };
 
-  const saveBudget = async () => {
-    const v = parseFloat(budgetDraft);
-    if (!v || v <= 0) { toast.error("Вкажіть коректний бюджет"); return; }
-    try {
-      await setMonthlyBudget(v);
-      toast.success("Бюджет оновлено");
-      setBudgetOpen(false);
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  };
-
-  const resetMonth = async () => {
-    try {
-      await updateUser({ budgetResetAt: new Date().toISOString() });
-      toast.success("Витрати місяця скинуто");
-      setBudgetOpen(false);
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  };
-
   return (
     <MobileShell>
       <header className="px-5 pt-6 pb-4 flex items-center justify-between gap-2">
@@ -164,21 +139,15 @@ function GroupPage() {
           <FavoriteToggle groupId={group.id} />
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Popover open={budgetOpen} onOpenChange={(o) => { setBudgetOpen(o); if (o) setBudgetDraft(String(monthlyBudget ?? 2000)); }}>
-            <PopoverTrigger asChild>
-              <button className="size-10 rounded-full bg-surface-elevated border border-border flex items-center justify-center" aria-label="Налаштування бюджету">
-                <Settings2 className="size-4" />
+          <QrInviteDialog
+            groupId={group.id}
+            groupName={group.name}
+            trigger={
+              <button className="px-3 h-10 rounded-full gradient-primary text-primary-foreground text-xs font-medium flex items-center gap-1 shadow-glow">
+                <QrCode className="size-4" /> Запросити
               </button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 rounded-2xl space-y-3">
-              <p className="text-sm font-semibold">Місячний бюджет</p>
-              <Input type="number" inputMode="decimal" value={budgetDraft} onChange={(e) => setBudgetDraft(e.target.value)} placeholder="Ліміт, ₴" className="h-11 rounded-xl" />
-              <Button onClick={saveBudget} className="w-full h-10 rounded-xl gradient-primary text-primary-foreground">Зберегти</Button>
-              <Button onClick={resetMonth} variant="outline" className="w-full h-10 rounded-xl">
-                <RotateCcw className="size-4 mr-2" /> Скинути витрати місяця
-              </Button>
-            </PopoverContent>
-          </Popover>
+            }
+          />
           <QrInviteDialog
             groupId={group.id}
             groupName={group.name}

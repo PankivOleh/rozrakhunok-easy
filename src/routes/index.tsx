@@ -4,12 +4,13 @@ import { MobileShell } from "@/components/MobileShell";
 import { HeaderActions } from "@/components/HeaderActions";
 import { AddExpenseDialog } from "@/components/AddExpenseDialog";
 import { AddGroupDialog } from "@/components/AddGroupDialog";
+import { BudgetDialog } from "@/components/BudgetDialog";
 import { FavoriteToggle } from "@/components/FavoriteToggle";
 import { Button } from "@/components/ui/button";
 import { useApp } from "@/lib/app-context";
 import { useAuth } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n-context";
-import { calcMemberBalances, formatUAH } from "@/lib/split";
+import { calcMemberBalances, formatUAH, round2 } from "@/lib/split";
 import { Progress } from "@/components/ui/progress";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -45,11 +46,17 @@ function Dashboard() {
   const monthSpent = useMemo(() => {
     const monthKey = new Date().toISOString().slice(0, 7);
     const resetIso = user?.budgetResetAt;
-    return expenses
+    const expSum = expenses
       .filter((e) => e.date.startsWith(monthKey) && e.payerId === currentUserId)
       .filter((e) => !resetIso || e.date >= resetIso.slice(0, 10))
       .reduce((s, e) => s + e.amount, 0);
-  }, [expenses, currentUserId, user?.budgetResetAt]);
+    // Settlements are real cash outflows for the payer (fromId) — count them too.
+    const settleSum = settlements
+      .filter((s) => s.fromId === currentUserId && s.date.startsWith(monthKey))
+      .filter((s) => !resetIso || s.date >= resetIso.slice(0, 10))
+      .reduce((s, x) => s + x.amount, 0);
+    return round2(expSum + settleSum);
+  }, [expenses, settlements, currentUserId, user?.budgetResetAt]);
 
   const budgetPct = monthlyBudget ? Math.min(100, Math.round((monthSpent / monthlyBudget) * 100)) : 0;
   const recent = expenses.slice(0, 6);
@@ -111,17 +118,21 @@ function Dashboard() {
       </section>
 
       <section className="px-5 mt-4">
-        <div className="rounded-2xl bg-card p-4 shadow-card border border-border">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium">{t("budget.monthly")}</p>
-            <p className="text-xs text-muted-foreground">{budgetPct}%</p>
-          </div>
-          <Progress value={budgetPct} className="h-2" />
-          <div className="mt-2 flex justify-between text-xs text-muted-foreground">
-            <span>{formatUAH(monthSpent)}</span>
-            <span>{formatUAH(monthlyBudget)}</span>
-          </div>
-        </div>
+        <BudgetDialog
+          trigger={
+            <button className="w-full text-left rounded-2xl bg-card p-4 shadow-card border border-border hover:border-primary/50 transition">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium">{t("budget.monthly")}</p>
+                <p className="text-xs text-muted-foreground">{budgetPct}% · натисніть для зміни</p>
+              </div>
+              <Progress value={budgetPct} className="h-2" />
+              <div className="mt-2 flex justify-between text-xs text-muted-foreground">
+                <span>{formatUAH(monthSpent)}</span>
+                <span>{formatUAH(monthlyBudget)}</span>
+              </div>
+            </button>
+          }
+        />
       </section>
 
       <section className="mt-6">

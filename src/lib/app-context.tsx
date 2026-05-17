@@ -25,7 +25,7 @@ type Ctx = {
   setMonthlyBudget: (v: number) => Promise<void>;
   getGroup: (id: string) => Group | undefined;
   settleDebt: (groupId: string, fromId: string, toId: string, amount: number) => Promise<void>;
-  sendDebtReminder: (groupId: string, debtorId: string, creditorId: string, amount: number, message: string) => Promise<void>;
+  sendDebtReminder: (groupId: string, debtorId: string, creditorId: string, amount: number, message: string, opts?: { creditorName?: string; groupName?: string; debtId?: string }) => Promise<void>;
   scheduleReminder: (r: { groupId: string; creditorId: string; debtorId: string; intervalDays: number; amount?: number; debtId?: string }) => Promise<void>;
   cancelReminder: (id: string, groupId?: string) => Promise<void>;
   markNotificationsRead: () => Promise<void>;
@@ -173,8 +173,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await expenseService.settleDebt({ groupId, fromId, toId, amount, createdBy: uid });
   }, [uid]);
 
-  const sendDebtReminder = useCallback<Ctx["sendDebtReminder"]>(async (groupId, debtorId, creditorId, amount, message) => {
-    await notificationService.sendDebtReminder({ groupId, debtorId, creditorId, message, amount });
+  const sendDebtReminder = useCallback<Ctx["sendDebtReminder"]>(async (groupId, debtorId, creditorId, amount, message, opts) => {
+    await notificationService.sendDebtReminder({
+      groupId, debtorId, creditorId, message, amount,
+      debtId: opts?.debtId,
+      creditorName: opts?.creditorName,
+      groupName: opts?.groupName,
+    });
   }, []);
 
   const scheduleReminder = useCallback<Ctx["scheduleReminder"]>(async (reminder) => {

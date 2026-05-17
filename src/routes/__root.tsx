@@ -16,6 +16,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { ThemeProvider } from "@/lib/theme-context";
 import { I18nProvider } from "@/lib/i18n-context";
 import { Toaster } from "@/components/ui/sonner";
+import { VerifyEmailScreen } from "@/components/VerifyEmailScreen";
 
 function NotFoundComponent() {
   return (
@@ -105,6 +106,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user && !isPublic) return null;
+  // Strict email verification gate: block app access until verified.
+  if (user && user.email && user.emailVerified === false && !isPublic) {
+    return <VerifyEmailScreen />;
+  }
   return <>{children}</>;
 }
 

@@ -55,8 +55,13 @@ export type Settlement = {
   amount: number;
 };
 
+/** Strict 2-decimal rounding that avoids floating-point drift. */
+export function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 export function formatUAH(value: number): string {
-  return `${value.toLocaleString("uk-UA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₴`;
+  return `${round2(value).toLocaleString("uk-UA", { minimumFractionDigits: 0, maximumFractionDigits: 2 })} ₴`;
 }
 
 export function calcMemberBalances(
@@ -68,27 +73,34 @@ export function calcMemberBalances(
   group.members.forEach((m) => (balances[m.id] = 0));
 
   for (const e of expenses.filter((expense) => expense.groupId === group.id)) {
-    balances[e.payerId] = (balances[e.payerId] ?? 0) + e.amount;
+    balances[e.payerId] = round2((balances[e.payerId] ?? 0) + e.amount);
     const participants = e.participants?.length ? e.participants : group.members.map((m) => m.id);
     if (e.splitType === "equal") {
-      const share = e.amount / participants.length;
-      participants.forEach((memberId) => { balances[memberId] = (balances[memberId] ?? 0) - share; });
+      // Distribute amount evenly with cent-perfect remainder handling.
+      const totalCents = Math.round(e.amount * 100);
+      const baseCents = Math.floor(totalCents / participants.length);
+      let remainder = totalCents - baseCents * participants.length;
+      participants.forEach((memberId) => {
+        const shareCents = baseCents + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+        balances[memberId] = round2((balances[memberId] ?? 0) - shareCents / 100);
+      });
     } else if (e.shares) {
       for (const [memberId, amount] of Object.entries(e.shares)) {
-        balances[memberId] = (balances[memberId] ?? 0) - amount;
+        balances[memberId] = round2((balances[memberId] ?? 0) - amount);
       }
     }
   }
 
   for (const s of settlements.filter((settlement) => settlement.groupId === group.id)) {
-    balances[s.fromId] = (balances[s.fromId] ?? 0) + s.amount;
-    balances[s.toId] = (balances[s.toId] ?? 0) - s.amount;
+    balances[s.fromId] = round2((balances[s.fromId] ?? 0) + s.amount);
+    balances[s.toId] = round2((balances[s.toId] ?? 0) - s.amount);
   }
   return balances;
 }
 
 export function optimizeSettlements(balances: Record<string, number>): Settlement[] {
-  const entries = Object.entries(balances).map(([id, value]) => ({ id, value: Math.round(value * 100) / 100 }));
+  const entries = Object.entries(balances).map(([id, value]) => ({ id, value: round2(value) }));
   const debtors = entries.filter((entry) => entry.value < -0.01).map((entry) => ({ ...entry }));
   const creditors = entries.filter((entry) => entry.value > 0.01).map((entry) => ({ ...entry }));
   debtors.sort((a, b) => a.value - b.value);
@@ -100,14 +112,10 @@ export function optimizeSettlements(balances: Record<string, number>): Settlemen
   while (debtorIndex < debtors.length && creditorIndex < creditors.length) {
     const debtor = debtors[debtorIndex];
     const creditor = creditors[creditorIndex];
-    const amount = Math.min(-debtor.value, creditor.value);
-    settlements.push({
-      fromId: debtor.id,
-      toId: creditor.id,
-      amount: Math.round(amount * 100) / 100,
-    });
-    debtor.value += amount;
-    creditor.value -= amount;
+    const amount = round2(Math.min(-debtor.value, creditor.value));
+    settlements.push({ fromId: debtor.id, toId: creditor.id, amount });
+    debtor.value = round2(debtor.value + amount);
+    creditor.value = round2(creditor.value - amount);
     if (Math.abs(debtor.value) < 0.01) debtorIndex++;
     if (Math.abs(creditor.value) < 0.01) creditorIndex++;
   }

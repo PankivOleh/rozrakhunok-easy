@@ -20,8 +20,8 @@ export function QrInviteDialog({ trigger, groupId, groupName }: { trigger: React
         </DialogHeader>
         <div className="flex flex-col items-center gap-3 py-2">
           <p className="text-sm text-muted-foreground text-center">{t("invite.subtitle")}</p>
-          <div className="w-full max-w-[240px] aspect-square bg-white p-4 rounded-2xl flex items-center justify-center shadow-card">
-            <QRCodeSVG value={url} size={208} bgColor="#ffffff" fgColor="#000000" level="M" className="w-full h-full" />
+          <div className="bg-white p-6 rounded-2xl flex items-center justify-center w-[260px] h-[260px] aspect-square overflow-hidden mx-auto shadow-lg border border-primary/20">
+            <QRCodeSVG value={url} size={212} bgColor="#ffffff" fgColor="#000000" level="M" className="w-full h-full" />
           </div>
           <p className="text-xs text-muted-foreground">{groupName}</p>
           <div className="w-full flex items-center gap-2 rounded-xl bg-surface px-3 py-2">

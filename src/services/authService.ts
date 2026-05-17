@@ -136,9 +136,10 @@ export const authService = {
         tx.set(publicRef, publicProfile);
       });
 
-      // Send verification email (non-blocking)
+      // Send verification email with explicit actionCodeSettings (continue URL).
       try {
-        await sendEmailVerification(cred.user, { url: typeof window !== "undefined" ? window.location.origin : "" });
+        const continueUrl = typeof window !== "undefined" ? `${window.location.origin}/?verified=1` : undefined;
+        await sendEmailVerification(cred.user, continueUrl ? { url: continueUrl, handleCodeInApp: false } : undefined);
       } catch (e) {
         console.warn("sendEmailVerification failed", e);
       }
@@ -166,7 +167,8 @@ export const authService = {
   async resendVerification() {
     const { auth } = ensureFirebase();
     if (!auth.currentUser) throw new Error("Потрібно увійти");
-    await sendEmailVerification(auth.currentUser, { url: typeof window !== "undefined" ? window.location.origin : "" });
+    const continueUrl = typeof window !== "undefined" ? `${window.location.origin}/?verified=1` : undefined;
+    await sendEmailVerification(auth.currentUser, continueUrl ? { url: continueUrl, handleCodeInApp: false } : undefined);
   },
 
   async reloadCurrent() {
