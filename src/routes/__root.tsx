@@ -106,6 +106,10 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
   if (!user && !isPublic) return null;
+  // Strict email verification gate: block app access until verified.
+  if (user && user.email && user.emailVerified === false && !isPublic) {
+    return <VerifyEmailScreen />;
+  }
   return <>{children}</>;
 }
 
